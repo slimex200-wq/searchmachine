@@ -243,6 +243,38 @@ class Test29cmScraper(unittest.TestCase):
         )
         self.assertEqual("디렉터가 직접 입고 소개해요 오디에스 오디에스 디렉터의 SNS 속 포착된", title)
 
+    def test_marketing_title_is_shortened_for_brand_event(self) -> None:
+        self.assertEqual(
+            "인플루언서 왕밤빵이 제안하는 봄 스타일 사비에",
+            scraper_29cm_module._shorten_29cm_title(
+                "인플루언서 왕밤빵이 제안하는 봄 스타일 사비에 유튜버 왕밤빵이 제안하는 사비에의 신상품을 만나보세요."
+            ),
+        )
+
+    def test_brand_event_can_replace_overlong_meta_title(self) -> None:
+        html = """
+        <html>
+          <head>
+            <title>인플루언서 왕밤빵이 제안하는 봄 스타일 사비에 유튜버 왕밤빵이 제안하는 사비에의 신상품을 만나보세요.</title>
+          </head>
+          <body>
+            감도 깊은 취향 셀렉트샵 29CM NEW PRODUCT 10%
+            인플루언서 왕밤빵이 제안하는 봄 스타일 사비에 유튜버 왕밤빵이 제안하는 사비에의 신상품을 만나보세요.
+            2026. 3. 12. - 3. 18.
+          </body>
+        </html>
+        """
+        soup = scraper_29cm_module.BeautifulSoup(html, "html.parser")
+
+        row = scraper_29cm_module._extract_candidate(
+            soup,
+            "https://www.29cm.co.kr/content/brand-event/2026/03/12/savier?cache=true",
+            html,
+        )
+
+        self.assertIsNotNone(row)
+        self.assertEqual("인플루언서 왕밤빵이 제안하는 봄 스타일 사비에", row["title"])
+
     @patch.object(scraper_29cm_module.requests, "Session")
     def test_collects_links_across_multiple_hubs(self, session_cls) -> None:
         session = MagicMock()

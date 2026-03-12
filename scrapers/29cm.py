@@ -339,6 +339,41 @@ def _clean_29cm_title(title: str) -> str:
     return normalize_space(cleaned)
 
 
+def _shorten_29cm_title(title: str) -> str:
+    cleaned = _clean_29cm_title(title)
+    if len(cleaned) <= 45:
+        return cleaned
+
+    for pattern in (
+        r"^(?P<prefix>.+?)\s+(?:유튜버|인플루언서|디렉터|브랜드)\s+.+$",
+        r"^(?P<prefix>.+?)\s+(?:신상품을|상품을)\s+만나보세요\.?$",
+    ):
+        match = re.match(pattern, cleaned)
+        if not match:
+            continue
+        candidate = normalize_space(match.group("prefix"))
+        if 8 <= len(candidate) < len(cleaned):
+            cleaned = candidate
+            break
+
+    if len(cleaned) > 55:
+        for separator in (",", "，", "·", "|"):
+            if separator not in cleaned:
+                continue
+            candidate = normalize_space(cleaned.split(separator, 1)[0])
+            if 8 <= len(candidate) < len(cleaned):
+                cleaned = candidate
+                break
+
+    year_match = re.search(r"\b(?:19|20)?\d{2}년\b", cleaned)
+    if year_match:
+        candidate = normalize_space(cleaned[: year_match.start()])
+        if 8 <= len(candidate) < len(cleaned):
+            cleaned = candidate
+
+    return normalize_space(cleaned.rstrip("."))
+
+
 def _extract_inline_date_text(html: str) -> str:
     snippets: list[str] = []
     for pattern in INLINE_DATE_PATTERNS:
@@ -391,7 +426,7 @@ def _extract_brand_event_title_from_body(body_text: str) -> str:
 
     candidate = normalize_space(parts[-1])
     candidate = re.sub(r"\s+\d{2}년\s+.+$", "", candidate)
-    return normalize_space(candidate)
+    return _shorten_29cm_title(candidate)
 
 
 def _extract_brand_event_title_from_body(body_text: str) -> str:
@@ -401,6 +436,29 @@ def _extract_brand_event_title_from_body(body_text: str) -> str:
 
     cleaned = re.sub(r"^감도\s*깊은\s*취향\s*셀렉트샵\s*29CM\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^媛먮룄\s+源딆?\s+痍⑦뼢\s+??됲듃??s*29CM\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^NEW PRODUCT\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^[~0-9+%]+\s*", "", cleaned)
+
+    date_match = re.search(r"(?:20\d{2}\.\s*\d{1,2}\.\s*\d{1,2}|\d{2}\.\s*\d{1,2}\.\s*\d{1,2})\.\s*(?:-|~)", cleaned)
+    if not date_match:
+        return ""
+
+    prefix = cleaned[: date_match.start()].strip()
+    parts = re.split(r"(?<=[.!?])\s+", prefix)
+    if not parts:
+        return ""
+
+    candidate = normalize_space(parts[-1])
+    candidate = re.sub(r"\s+\d{2}년\s+.+$", "", candidate)
+    return _shorten_29cm_title(candidate)
+
+
+def _extract_brand_event_title_from_body(body_text: str) -> str:
+    cleaned = normalize_space(body_text)
+    if not cleaned:
+        return ""
+
+    cleaned = re.sub(r"^(?:.*?29CM\s*)+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^NEW PRODUCT\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^[~0-9+%]+\s*", "", cleaned)
 
@@ -437,8 +495,8 @@ def _extract_brand_event_title_from_body(body_text: str) -> str:
         return ""
 
     candidate = normalize_space(parts[-1])
-    candidate = re.sub(r"\s+\d{2}년\s+.+$", "", candidate)
-    return normalize_space(candidate)
+    candidate = re.sub(r"\s+\d{2}\s+.+$", "", candidate)
+    return _shorten_29cm_title(candidate)
 
 
 def _extract_next_data_payload(soup: BeautifulSoup) -> dict[str, Any] | None:
@@ -613,9 +671,11 @@ def _extract_candidate(soup: BeautifulSoup, detail_url: str, html: str) -> dict[
         if title:
             break
 
-    title = _clean_29cm_title(title)
-    if _is_generic_29cm_title(title) and "/content/brand-event/" in detail_url:
-        title = _extract_brand_event_title_from_body(body_text)
+    title = _shorten_29cm_title(title)
+    if "/content/brand-event/" in detail_url:
+        fallback_title = _extract_brand_event_title_from_body(body_text)
+        if fallback_title and (_is_generic_29cm_title(title) or len(title) > 45):
+            title = fallback_title
     if _is_generic_29cm_title(title):
         return None
 

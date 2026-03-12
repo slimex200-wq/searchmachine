@@ -130,6 +130,7 @@ class SaleDiscoveryEngine:
                 link=str(row.get("link", "")),
                 start_date=None,
                 end_date=None,
+                platform=row.get("platform"),
             )
             row2 = dict(row)
             row2["sale_tier"] = tier
@@ -382,6 +383,7 @@ class SaleDiscoveryEngine:
             end_date=page.end_date,
             signal_type=page.signal_type,
             confidence_score=page.confidence_score,
+            platform=page.platform,
         )
         page.sale_tier = tier
         page.importance_score = score

@@ -45,6 +45,11 @@ NEGATIVE_HINTS = (
     "time deal",
 )
 
+TITLE_SUFFIX_PATTERNS = (
+    r"\s*\|\s*W\s*컨셉\s*\(\s*W\s*CONCEPT\s*\)\s*$",
+    r"\s*\|\s*W\s*CONCEPT\s*$",
+)
+
 
 def _hub_urls() -> list[str]:
     return [
@@ -86,10 +91,17 @@ def _is_majorish_event(text: str) -> bool:
     return any(token in lowered for token in MAJOR_HINTS)
 
 
+def _clean_wconcept_title(title: str) -> str:
+    cleaned = normalize_space(title)
+    for pattern in TITLE_SUFFIX_PATTERNS:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    return normalize_space(cleaned).rstrip("| ").strip()
+
+
 def _extract_candidate(soup: BeautifulSoup, source_url: str, raw_html: str = "") -> dict[str, Any] | None:
     title_node = soup.select_one("h1, .tit, .title, title")
     body_text = normalize_space(soup.get_text(" ", strip=True))
-    title = normalize_space(title_node.get_text(" ", strip=True) if title_node else "")
+    title = _clean_wconcept_title(title_node.get_text(" ", strip=True) if title_node else "")
     if not title:
         return None
 

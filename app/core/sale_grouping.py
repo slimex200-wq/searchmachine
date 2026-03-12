@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from app.core.keyword_rules import GROUPING_IGNORE_TOKENS
 from app.core.models import GroupedSaleEvent, SalePage
+from app.core.sale_classifier import classify_sale_importance
 from utils import canonical_title
 
 PLATFORM_GROUPING_IGNORE_TOKENS = {
@@ -152,21 +153,34 @@ def group_sale_events(pages: list[SalePage]) -> tuple[list[GroupedSaleEvent], li
         starts = [_safe_date(p.start_date) for p in updated_cluster if _safe_date(p.start_date)]
         ends = [_safe_date(p.end_date) for p in updated_cluster if _safe_date(p.end_date)]
         ordered_urls = [rep.link] + [p.link for p in updated_cluster if p.link != rep.link]
+
+        # 다중 페이지 보너스를 반영하여 재분류
+        page_count = len(updated_cluster)
+        group_start = min(starts).isoformat() if starts else rep.start_date
+        group_end = max(ends).isoformat() if ends else rep.end_date
+        tier, score, reason = classify_sale_importance(
+            title=rep.title,
+            description=rep.description,
+            link=rep.link,
+            start_date=group_start,
+            end_date=group_end,
+            signal_type=rep.signal_type,
+            confidence_score=rep.confidence_score,
+            platform=rep.platform,
+            source_page_count=page_count,
+        )
+
         grouped.append(
             GroupedSaleEvent(
                 title=rep.title,
                 platform=rep.platform,
-                start_date=min(starts).isoformat() if starts else rep.start_date,
-                end_date=max(ends).isoformat() if ends else rep.end_date,
-                source_page_count=len(updated_cluster),
+                start_date=group_start,
+                end_date=group_end,
+                source_page_count=page_count,
                 grouped_urls=ordered_urls,
-                importance_score=max(p.importance_score for p in updated_cluster),
-                sale_tier="major" if any(p.sale_tier == "major" for p in updated_cluster) else "minor",
-                filter_reason=(
-                    "grouped_major_event"
-                    if any(p.sale_tier == "major" for p in updated_cluster)
-                    else "grouped_minor_event"
-                ),
+                importance_score=score,
+                sale_tier=tier,
+                filter_reason=reason,
                 event_key=key,
                 category=rep.category,
                 description=rep.description,
