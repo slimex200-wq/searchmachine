@@ -287,6 +287,41 @@ class TestNaverNewsScraper(unittest.TestCase):
         self.assertEqual("2026-03-10", normalized[0]["start_date"])
         self.assertEqual("2026-03-19", normalized[0]["end_date"])
 
+    @patch("news.naver_news.requests.Session")
+    def test_filters_out_article_noise_keywords(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        response = MagicMock(status_code=200, text='{"items":[]}')
+        response.json.return_value = {
+            "total": 2,
+            "items": [
+                {
+                    "title": "[유프로의 AI 픽] 올영세일 추천 총정리",
+                    "originallink": "https://news.example.com/oliveyoung-ai-pick",
+                    "description": "올리브영 세일과 앱 트래픽을 분석한 기사",
+                    "pubDate": "Thu, 12 Mar 2026 09:00:00 +0900",
+                },
+                {
+                    "title": "메이영 오일투폼 클렌저, 올리브영서 예약판매",
+                    "originallink": "https://news.example.com/oliveyoung-preorder",
+                    "description": "올영세일 기간 다시 예약판매를 진행한다",
+                    "pubDate": "Thu, 12 Mar 2026 09:00:00 +0900",
+                },
+            ],
+        }
+        session.get.return_value = response
+
+        result = scrape_naver_news(
+            timeout_seconds=1,
+            limit=5,
+            client_id="id",
+            client_secret="secret",
+        )
+
+        self.assertEqual([], result["rows"])
+        self.assertIn("article_noise", result["debug"]["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

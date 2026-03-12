@@ -98,6 +98,18 @@ PRESS_RELEASE_NOISE_KEYWORDS = (
 )
 
 
+ARTICLE_NOISE_KEYWORDS = (
+    "예약판매",
+    "재예약판매",
+    "소비자 관심도",
+    "관심도 1위",
+    "1위 질주",
+    "ai 픽",
+    "유프로의 ai 픽",
+    "로드숍",
+)
+
+
 def _strip_html(value: str) -> str:
     text = html.unescape(value or "")
     text = re.sub(r"<[^>]+>", " ", text)
@@ -189,6 +201,11 @@ def _contains_roundup_title_noise(title: str) -> bool:
 def _contains_press_release_noise(title: str, description: str) -> bool:
     text = normalize_space(f"{title} {description}").lower()
     return any(keyword.lower() in text for keyword in PRESS_RELEASE_NOISE_KEYWORDS)
+
+
+def _contains_article_noise(title: str, description: str) -> bool:
+    text = normalize_space(f"{title} {description}").lower()
+    return any(keyword.lower() in text for keyword in ARTICLE_NOISE_KEYWORDS)
 
 
 def _mentions_platform_in_title(title: str, platform_key: str) -> bool:
@@ -325,6 +342,9 @@ def scrape_naver_news(
                     elif _contains_context_noise(title, description):
                         keep = False
                         reason = "context_noise"
+                    elif _contains_article_noise(title, description) and not _contains_high_signal_news(title, description):
+                        keep = False
+                        reason = "article_noise"
                     elif _contains_result_noise(title, description) and not _contains_high_signal_news(title, description):
                         keep = False
                         reason = "result_noise"

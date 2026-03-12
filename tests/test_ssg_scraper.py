@@ -18,7 +18,7 @@ class TestSsgScraper(unittest.TestCase):
         self.assertEqual("2026-03-15", end_date)
 
     def test_extract_date_window_supports_multiple_phase_ranges(self) -> None:
-        start_date, end_date = _extract_date_window("발급 및 사용기간 1차: 3/5(목)-11(수), 2차: 3/12(목)-15(일)")
+        start_date, end_date = _extract_date_window("발급 및 사용기간 1차 3/5(목)-11(수), 2차 3/12(목)-15(일)")
 
         self.assertEqual("2026-03-05", start_date)
         self.assertEqual("2026-03-15", end_date)
@@ -188,6 +188,69 @@ class TestSsgScraper(unittest.TestCase):
         self.assertEqual(1, debug["filtered_candidates"])
         self.assertEqual(1, len(result["rows"]))
         self.assertEqual("기획전", result["rows"][0]["title"])
+
+    @patch("scrapers.ssg.requests.Session")
+    def test_ssg_club_promo_is_filtered_as_noise(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        hub_html = """
+        <html><body>
+        <a href="https://event.ssg.com/eventDetail.ssg?nevntId=1000000021654">detail</a>
+        </body></html>
+        """
+        detail_html = """
+        <html>
+        <head><meta property="og:title" content="쓱7클럽은 티빙도 무료" /></head>
+        <body>
+          <h1>쓱7클럽은 티빙도 무료</h1>
+          <div>2026-03-05 ~ 2026-03-15 이벤트</div>
+        </body>
+        </html>
+        """
+        session.get.side_effect = [
+            MagicMock(status_code=200, text=hub_html),
+            MagicMock(status_code=200, text=detail_html),
+        ]
+
+        result = scrape_ssg(timeout_seconds=1, limit=3, debug_save_html=False)
+        debug = result["debug"]
+
+        self.assertEqual([], result["rows"])
+        self.assertEqual(1, debug["raw_candidates"])
+        self.assertEqual(0, debug["filtered_candidates"])
+
+    @patch("scrapers.ssg.requests.Session")
+    def test_ssg_live_event_is_filtered_as_noise(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        hub_html = """
+        <html><body>
+        <a href="https://event.ssg.com/eventDetail.ssg?nevntId=1000000021589">detail</a>
+        </body></html>
+        """
+        detail_html = """
+        <html>
+        <head><meta property="og:title" content="3/13 LG렌탈 라이브" /></head>
+        <body>
+          <h1>3/13 LG렌탈 라이브</h1>
+          <div>2026-03-13 단 하루 이벤트</div>
+        </body>
+        </html>
+        """
+        session.get.side_effect = [
+            MagicMock(status_code=200, text=hub_html),
+            MagicMock(status_code=200, text=detail_html),
+        ]
+
+        result = scrape_ssg(timeout_seconds=1, limit=3, debug_save_html=False)
+        debug = result["debug"]
+
+        self.assertEqual([], result["rows"])
+        self.assertEqual(1, debug["raw_candidates"])
+        self.assertEqual(0, debug["filtered_candidates"])
+
 
 if __name__ == "__main__":
     unittest.main()

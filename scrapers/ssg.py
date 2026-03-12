@@ -42,6 +42,15 @@ GENERIC_TITLES = {
     "믿고 사는 즐거움",
     "믿고 사는 즐거움 ssg.com",
 }
+NOISE_TITLE_PATTERNS = (
+    "쓱7클럽",
+    "티빙",
+    "출석체크",
+    "초대하기",
+    "시식회",
+    "라이브",
+    "grand open",
+)
 
 
 def _hub_urls() -> list[str]:
@@ -195,6 +204,11 @@ def _is_generic_title(title: str) -> bool:
     return lowered in GENERIC_TITLES
 
 
+def _is_noise_title(title: str, body_text: str) -> bool:
+    combined = f"{normalize_space(title)} {normalize_space(body_text[:400])}".lower()
+    return any(pattern in combined for pattern in NOISE_TITLE_PATTERNS)
+
+
 def _extract_home_candidate(soup: BeautifulSoup, source_url: str) -> dict[str, Any] | None:
     body_text = normalize_space(soup.get_text(" ", strip=True))
     if not _looks_like_sale_event(body_text):
@@ -242,6 +256,9 @@ def _extract_candidate(soup: BeautifulSoup, detail_url: str, html: str) -> dict[
     if not title or _is_generic_title(title):
         title = _extract_breadcrumb_title(body_text)
     if not title:
+        return None
+
+    if _is_noise_title(title, body_text):
         return None
 
     if not _looks_like_sale_event(f"{title} {body_text[:1500]}"):

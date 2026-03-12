@@ -3,6 +3,35 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+# ── 뉴스 세일 자동 승인 기준 ──
+# importance_score가 이 값 이상이고 sale_tier가 major이면 자동 승인
+AUTO_APPROVE_SCORE_THRESHOLD = 50
+
+
+def _resolve_publish_status(
+    source_type: str,
+    sale_tier: str,
+    importance_score: int | None,
+    publish_status: str | None,
+    review_status: str | None,
+) -> tuple[str, str]:
+    """소스 타입과 점수에 따라 publish_status, review_status를 결정."""
+    score = importance_score or 0
+    if source_type == "news":
+        if sale_tier == "major" and score >= AUTO_APPROVE_SCORE_THRESHOLD:
+            return (
+                publish_status or "published",
+                review_status or "approved",
+            )
+        return (
+            publish_status or "draft",
+            review_status or "pending",
+        )
+    return (
+        publish_status or ("published" if sale_tier == "major" else "draft"),
+        review_status or ("approved" if sale_tier == "major" else "pending"),
+    )
+
 
 @dataclass
 class SalePage:
@@ -31,12 +60,10 @@ class SalePage:
     def as_sales_payload(self) -> dict:
         start = self.start_date or date.today().isoformat()
         end = self.end_date or start
-        if self.source_type == "news":
-            publish_status = self.publish_status or "draft"
-            review_status = self.review_status or "pending"
-        else:
-            publish_status = self.publish_status or ("published" if self.sale_tier == "major" else "draft")
-            review_status = self.review_status or ("approved" if self.sale_tier == "major" else "pending")
+        pub, rev = _resolve_publish_status(
+            self.source_type, self.sale_tier, self.importance_score,
+            self.publish_status, self.review_status,
+        )
         return {
             "platform": self.platform,
             "sale_name": self.title,
@@ -52,9 +79,9 @@ class SalePage:
             "source_url": self.source_url or self.link,
             "pub_date": self.pub_date,
             "image_url": self.image_url,
-            "status": publish_status,
-            "publish_status": publish_status,
-            "review_status": review_status,
+            "status": pub,
+            "publish_status": pub,
+            "review_status": rev,
             "sale_tier": self.sale_tier,
             "importance_score": self.importance_score,
             "filter_reason": self.filter_reason,
@@ -87,12 +114,10 @@ class GroupedSaleEvent:
     def as_sales_payload(self) -> dict:
         start = self.start_date or date.today().isoformat()
         end = self.end_date or start
-        if self.source_type == "news":
-            publish_status = self.publish_status or "draft"
-            review_status = self.review_status or "pending"
-        else:
-            publish_status = self.publish_status or ("published" if self.sale_tier == "major" else "draft")
-            review_status = self.review_status or ("approved" if self.sale_tier == "major" else "pending")
+        pub, rev = _resolve_publish_status(
+            self.source_type, self.sale_tier, self.importance_score,
+            self.publish_status, self.review_status,
+        )
         return {
             "platform": self.platform,
             "sale_name": self.title,
@@ -108,9 +133,9 @@ class GroupedSaleEvent:
             "source_url": self.grouped_urls[0] if self.grouped_urls else "",
             "pub_date": self.pub_date,
             "image_url": self.image_url,
-            "status": publish_status,
-            "publish_status": publish_status,
-            "review_status": review_status,
+            "status": pub,
+            "publish_status": pub,
+            "review_status": rev,
             "sale_tier": self.sale_tier,
             "importance_score": self.importance_score,
             "filter_reason": self.filter_reason,

@@ -116,6 +116,27 @@ class TestGoogleNewsScraper(unittest.TestCase):
         self.assertEqual([], result["rows"])
         self.assertIn("source_mention_noise", result["debug"]["reasons"])
 
+    @patch("news.google_news.requests.Session")
+    def test_filters_article_noise_keywords(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+        response = MagicMock(status_code=200, text="""
+        <rss><channel>
+            <item>
+                <title>[유프로의 AI 픽] 올영세일 추천 총정리 - 매체</title>
+                <link>https://news.example.com/oliveyoung-ai-pick</link>
+                <description>올리브영 세일과 앱 트래픽을 분석한 기사</description>
+                <pubDate>Thu, 12 Mar 2026 09:00:00 +0900</pubDate>
+            </item>
+        </channel></rss>
+        """)
+        session.get.return_value = response
+
+        result = scrape_google_news(timeout_seconds=1, limit=5)
+
+        self.assertEqual([], result["rows"])
+        self.assertIn("article_noise", result["debug"]["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

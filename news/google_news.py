@@ -9,6 +9,7 @@ import requests
 
 from news.keyword_config import PLATFORM_NEWS_QUERIES
 from news.naver_news import (
+    _contains_article_noise,
     _contains_partnership_noise,
     _contains_press_release_noise,
     _contains_roundup_noise,
@@ -119,6 +120,9 @@ def scrape_google_news(
                     elif _contains_partnership_noise(title, description):
                         keep = False
                         reason = "partnership_noise"
+                    elif _contains_article_noise(title, description):
+                        keep = False
+                        reason = "article_noise"
                     elif _is_source_mention_noise(title, description, platform_key):
                         keep = False
                         reason = "source_mention_noise"
