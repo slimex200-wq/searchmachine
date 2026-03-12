@@ -107,6 +107,8 @@ ARTICLE_NOISE_KEYWORDS = (
     "ai 픽",
     "유프로의 ai 픽",
     "로드숍",
+    "lx하우시스",
+    "신한은행",
 )
 
 

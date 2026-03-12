@@ -378,6 +378,40 @@ class TestWconceptScraper(unittest.TestCase):
         self.assertIsNone(result["rows"][0].get("start_date"))
         self.assertIsNone(result["rows"][0].get("end_date"))
 
+    @patch("scrapers.wconcept.requests.Session")
+    def test_querystring_event_url_is_canonicalized_and_deduped(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        hub_html = """
+        <html><body>
+        <a href="https://event.wconcept.co.kr/event/127338?gnbType=Y">SPRING SHOES EDIT</a>
+        <a href="https://event.wconcept.co.kr/event/127338">SPRING SHOES EDIT</a>
+        </body></html>
+        """
+        detail_html = """
+        <html>
+          <head><title>SPRING SHOES EDIT | W CONCEPT</title></head>
+          <body>
+            <h1>SPRING SHOES EDIT | W CONCEPT</h1>
+            <div>2026-03-09 ~ 2026-03-16 season sale</div>
+          </body>
+        </html>
+        """
+        session.get.side_effect = [
+            MagicMock(status_code=200, text=hub_html),
+            MagicMock(status_code=200, text=detail_html),
+        ]
+
+        result = scrape_wconcept(timeout_seconds=1, limit=5, debug_save_html=False)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("https://event.wconcept.co.kr/event/127338", result["rows"][0]["link"])
+        self.assertEqual(
+            ["https://display.wconcept.co.kr/event", "https://event.wconcept.co.kr/event/127338"],
+            result["debug"]["requested_url"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

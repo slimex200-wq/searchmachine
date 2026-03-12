@@ -91,6 +91,15 @@ def _is_allowed_wconcept_link(link: str) -> bool:
     return host == "event.wconcept.co.kr" and path.startswith("/event/")
 
 
+def _normalize_event_link(link: str) -> str:
+    if not link:
+        return ""
+    normalized = normalize_space(link)
+    if _is_allowed_wconcept_link(normalized):
+        return _canonical_event_url(normalized)
+    return normalized
+
+
 def _is_majorish_event(text: str) -> bool:
     lowered = text.lower()
     if any(token in lowered for token in NEGATIVE_HINTS):
@@ -106,6 +115,7 @@ def _clean_wconcept_title(title: str) -> str:
 
 
 def _extract_candidate(soup: BeautifulSoup, source_url: str, raw_html: str = "") -> dict[str, Any] | None:
+    source_url = _normalize_event_link(source_url)
     title_node = soup.select_one("h1, .tit, .title, title")
     body_text = normalize_space(soup.get_text(" ", strip=True))
     title = _clean_wconcept_title(title_node.get_text(" ", strip=True) if title_node else "")
@@ -153,7 +163,7 @@ def _extract_event_links(soup: BeautifulSoup, hub_url: str, limit: int) -> list[
     links: list[str] = []
     seen: set[str] = set()
     for a in soup.select("a[href*='/event/']"):
-        link = normalize_link(a.get("href", ""), hub_url)
+        link = _normalize_event_link(normalize_link(a.get("href", ""), hub_url))
         if not link or not _is_allowed_wconcept_link(link) or link in seen:
             continue
         title = normalize_space(a.get_text(" ", strip=True))
@@ -252,6 +262,7 @@ def _extract_timed_event_links_from_html(html: str) -> tuple[set[str], set[str]]
         re.DOTALL,
     )
     for start_raw, end_raw, link in pattern.findall(html):
+        link = _normalize_event_link(link)
         start = _parse_display_datetime(start_raw)
         end = _parse_display_datetime(end_raw)
         if not start or not end:
@@ -276,7 +287,7 @@ def _extract_event_links_from_html(html: str, limit: int) -> list[str]:
                 return links
 
     for link in re.findall(r"https://event\.wconcept\.co\.kr/event/\d+[^\s\"'\\<]*", html):
-        clean_link = link.rstrip("',")
+        clean_link = _normalize_event_link(link.rstrip("',"))
         if clean_link in inactive_timed_links:
             continue
         if clean_link in seen or not _is_allowed_wconcept_link(clean_link):
@@ -315,6 +326,7 @@ def _click_button_and_collect_target(
         buttons.nth(idx).click(timeout=10000)
         modal_page.wait_for_timeout(3000)
         href = modal_page.url
+        href = _normalize_event_link(href)
         if href and _is_allowed_wconcept_link(href):
             return href
         return None
@@ -514,7 +526,16 @@ def scrape_wconcept(
                 print(f"[wconcept] failure_reason={debug['failure_reason']}")
                 continue
 
-    for i, url in enumerate(detail_urls):
+    deduped_detail_urls: list[str] = []
+    seen_detail_urls: set[str] = set()
+    for raw_url in detail_urls:
+        normalized_url = _normalize_event_link(raw_url)
+        if not normalized_url or normalized_url in seen_detail_urls:
+            continue
+        seen_detail_urls.add(normalized_url)
+        deduped_detail_urls.append(normalized_url)
+
+    for i, url in enumerate(deduped_detail_urls):
         debug["requested_url"].append(url)
         try:
             resp = session.get(url, timeout=timeout_seconds)
