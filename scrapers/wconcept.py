@@ -13,6 +13,7 @@ from scrapers.browser_utils import PlaywrightTimeoutError, collect_locator_links
 from scrapers.scraper_utils import build_signal_row, init_debug_state
 from utils.dates import parse_date_range_to_iso
 from utils import normalize_link, normalize_space
+
 try:
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover
@@ -41,13 +42,19 @@ NEGATIVE_HINTS = (
     "brand day",
     "single brand",
     "flash",
-    "첫 구매",
+    "泥?援щℓ",
     "time deal",
 )
 
 TITLE_SUFFIX_PATTERNS = (
-    r"\s*\|\s*W\s*컨셉\s*\(\s*W\s*CONCEPT\s*\)\s*$",
+    r"\s*\|\s*W\s*而⑥뀎\s*\(\s*W\s*CONCEPT\s*\)\s*$",
     r"\s*\|\s*W\s*CONCEPT\s*$",
+    r"\s*\|\s*W[^\|]{0,40}CONCEPT\)\s*$",
+)
+
+DATE_TOKEN_PATTERN = re.compile(
+    r"(?:20\d{2}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{1,2}|\d{1,2}월\s*\d{1,2}일)",
+    re.IGNORECASE,
 )
 
 
@@ -203,7 +210,10 @@ def _extract_page_schedule_window(html: str) -> tuple[str | None, str | None]:
 
     starts: list[datetime] = []
     ends: list[datetime] = []
-    for start_raw, end_raw in re.findall(r'\[\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"https://event\.wconcept\.co\.kr/event/\d+', block_match.group("body")):
+    for start_raw, end_raw in re.findall(
+        r'\[\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"https://event\.wconcept\.co\.kr/event/\d+',
+        block_match.group("body"),
+    ):
         start = _parse_display_datetime(start_raw)
         end = _parse_display_datetime(end_raw)
         if start and end:
@@ -226,6 +236,9 @@ def _extract_visible_date_window(text: str) -> tuple[str | None, str | None]:
     )
     if timed_range:
         return parse_date_range_to_iso(f"{timed_range.group('a')} - {timed_range.group('b')}")
+
+    if not DATE_TOKEN_PATTERN.search(normalized):
+        return None, None
 
     return parse_date_range_to_iso(normalized)
 
@@ -276,7 +289,10 @@ def _extract_event_links_from_html(html: str, limit: int) -> list[str]:
 
 
 def _extract_date_window(text: str) -> tuple[str | None, str | None]:
-    return parse_date_range_to_iso(text)
+    normalized = normalize_space(text)
+    if not DATE_TOKEN_PATTERN.search(normalized):
+        return None, None
+    return parse_date_range_to_iso(normalized)
 
 
 def _click_button_and_collect_target(
@@ -371,14 +387,6 @@ def _collect_playwright_detail_links(limit: int) -> tuple[list[str], list[str], 
                     if len(detail_links) >= limit:
                         break
 
-                    popup_links = page.locator(
-                        "div.layer a[href*='event.wconcept.co.kr/event/'], "
-                        "[class*='popup'] a[href*='event.wconcept.co.kr/event/'], "
-                        "[class*='layer'] a[href*='event.wconcept.co.kr/event/']"
-                    )
-                    popup_count = popup_links.count()
-                    if popup_count:
-                        reasons.append(f"playwright_popup_detected:{popup_count}")
                     popup_found, _ = collect_locator_links(
                         page=page,
                         selector=(
@@ -392,6 +400,8 @@ def _collect_playwright_detail_links(limit: int) -> tuple[list[str], list[str], 
                         is_allowed=_is_allowed_wconcept_link,
                         seen=seen,
                     )
+                    if popup_found:
+                        reasons.append(f"playwright_popup_detected:{len(popup_found)}")
                     detail_links.extend(popup_found)
                     if len(detail_links) >= limit:
                         break

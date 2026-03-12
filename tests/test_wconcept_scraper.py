@@ -347,6 +347,37 @@ class TestWconceptScraper(unittest.TestCase):
         self.assertEqual("2026-03-09", result["rows"][0]["start_date"])
         self.assertEqual("2026-03-12", result["rows"][0]["end_date"])
 
+    @patch("scrapers.wconcept.requests.Session")
+    def test_detail_page_without_date_tokens_does_not_default_to_today(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        hub_html = """
+        <html><body>
+        <a href="https://event.wconcept.co.kr/event/128380">SPRING SHOES WEEK</a>
+        </body></html>
+        """
+        detail_html = """
+        <html>
+          <head><title>SPRING SHOES WEEK | W?뚢뫁??W CONCEPT)</title></head>
+          <body>
+            <h1>SPRING SHOES WEEK | W?뚢뫁??W CONCEPT)</h1>
+            <div>season sale only</div>
+          </body>
+        </html>
+        """
+        session.get.side_effect = [
+            MagicMock(status_code=200, text=hub_html),
+            MagicMock(status_code=200, text=detail_html),
+        ]
+
+        result = scrape_wconcept(timeout_seconds=1, limit=3, debug_save_html=False)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("SPRING SHOES WEEK", result["rows"][0]["title"])
+        self.assertIsNone(result["rows"][0].get("start_date"))
+        self.assertIsNone(result["rows"][0].get("end_date"))
+
 
 if __name__ == "__main__":
     unittest.main()
