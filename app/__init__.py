@@ -1,0 +1,1 @@
+"""PickSale application package."""

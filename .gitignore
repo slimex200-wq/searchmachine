@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+logs/*
+!logs/.gitkeep
+scraper_debug/*
+run_log.txt
+naver_debug.txt
+crawler.log
