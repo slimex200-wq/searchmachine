@@ -1,33 +1,45 @@
-﻿# PickSale Ingestor
+# PickSale Ingestor
+
+PickSale Ingestor is a crawler and normalization pipeline for PickSale.
+It collects official sale pages, news mentions, and community posts, then uploads normalized data to PickSale APIs.
 
 ## Pipeline
 
 `main.py` runs sources in this order:
-1. OliveYoungScraper (official -> sales)
-2. MusinsaScraper (official -> sales)
-3. OhouseScraper (official -> sales)
-4. PpomppuCommunity (community -> community_posts)
+1. `29cmScraper` (official -> sales)
+2. `WconceptScraper` (official -> sales, browser-backed)
+3. `SsgScraper` (official -> sales, browser-backed)
+4. `MusinsaScraper` (official -> sales)
+5. `NaverNewsDiscovery` (news -> sales)
+6. `GoogleNewsDiscovery` (news -> sales, optional)
+7. `PpomppuCommunity` (community -> `community_posts`)
+8. `ClienCommunity` (community -> `community_posts`)
 
 Stages are separated as:
 - scrape
 - normalize
-- classify_sale_importance
-- filter_major_sales
-- group_sale_events
-- dedupe
+- classify
+- group
 - upload
 
 Community data is never auto-promoted to sales when `ENABLE_COMMUNITY_PROMOTION=false`.
-Default publishing target is grouped events with `sale_tier=major`.
+Official and news sources upload grouped sale events. Community sources upload normalized posts to `community_posts`.
+
+This repository is the ingestion engine. The admin panel is currently specified in `ADMIN_PANEL_REWORK_SPEC.md`, not implemented as a frontend app in this repo.
 
 ## Engine Modules
 
 The Sale Discovery Engine is under `app/core`:
 - `models.py`: `SalePage`, `GroupedSaleEvent`
-- `keyword_rules.py`: extendable keyword rule sets
+- `keyword_rules.py`, `keyword_rules_v2.py`: extendable keyword rule sets
 - `sale_classifier.py`: score + tier classifier
 - `sale_grouping.py`: merge related sale pages into one event
-- `pipeline.py`: orchestrates normalize/classify/filter/group/dedupe/upload
+- `pipeline.py`: orchestrates normalize/classify/group/upload
+
+Source collectors are split by channel:
+- `scrapers/`: official commerce/event sources
+- `news/`: Naver and Google news discovery
+- `community/`: community post collection
 
 ## Setup
 
@@ -44,13 +56,32 @@ copy .env.example .env
 PICKSALE_SALES_API_URL=https://your-sales-edge-function-url
 PICKSALE_COMMUNITY_API_URL=https://your-community-edge-function-url
 PICKSALE_API_KEY=your-api-key
+NAVER_CLIENT_ID=your-naver-client-id
+NAVER_CLIENT_SECRET=your-naver-client-secret
 REQUEST_TIMEOUT_SECONDS=20
+ENABLE_GOOGLE_NEWS=true
 ENABLE_COMMUNITY_UPLOAD=true
 ENABLE_COMMUNITY_PROMOTION=false
 COMMUNITY_TARGET_PLATFORMS=쿠팡,올리브영,무신사,KREAM,SSG,오늘의집,29CM
 DEBUG_SAVE_HTML=true
 DEBUG_DIR=scraper_debug
 ```
+
+Required:
+- `PICKSALE_SALES_API_URL`
+- `PICKSALE_COMMUNITY_API_URL`
+- `PICKSALE_API_KEY`
+- `REQUEST_TIMEOUT_SECONDS`
+
+Optional:
+- `NAVER_CLIENT_ID`
+- `NAVER_CLIENT_SECRET`
+- `ENABLE_GOOGLE_NEWS`
+- `ENABLE_COMMUNITY_UPLOAD`
+- `ENABLE_COMMUNITY_PROMOTION`
+- `COMMUNITY_TARGET_PLATFORMS`
+- `DEBUG_SAVE_HTML`
+- `DEBUG_DIR`
 
 ## Run
 
@@ -86,7 +117,7 @@ Task Scheduler quick setup:
 1. Create Basic Task
 2. Name: `PickSale Crawler`
 3. Trigger: Daily
-4. Add two triggers: e.g. `08:00` and `20:00`
+4. Add two triggers: for example `08:00` and `20:00`
 5. Action: Start a program
 6. Program/script: `C:\Users\slime\Desktop\picksale-ingestor\run_picksale_exe.bat`
 
@@ -94,7 +125,7 @@ If you still want the Python-based runner for local debugging:
 1. Create Basic Task
 2. Name: `PickSale Crawler (Python)`
 3. Trigger: Daily
-4. Add two triggers: e.g. `08:00` and `20:00`
+4. Add two triggers: for example `08:00` and `20:00`
 5. Action: Start a program
 6. Program/script: `C:\Users\slime\Desktop\picksale-ingestor\run_picksale.bat`
 
@@ -118,6 +149,15 @@ Required GitHub repository secrets:
 - `NAVER_CLIENT_ID` (optional, Naver news discovery only)
 - `NAVER_CLIENT_SECRET` (optional, Naver news discovery only)
 
+Workflow defaults:
+- `REQUEST_TIMEOUT_SECONDS=20`
+- `ENABLE_GOOGLE_NEWS=true`
+- `ENABLE_COMMUNITY_UPLOAD=true`
+- `ENABLE_COMMUNITY_PROMOTION=false`
+- `DEBUG_SAVE_HTML=false`
+- `DEBUG_DIR=scraper_debug`
+- `COMMUNITY_TARGET_PLATFORMS=coupang,oliveyoung,musinsa,KREAM,SSG,ohouse,29CM,wconcept`
+
 Setup steps:
 1. Push this project to a GitHub repository.
 2. Make sure the default branch exists as `main` after the first push.
@@ -140,8 +180,8 @@ git push -u origin main
 Notes:
 - GitHub Actions is what runs the crawler, not Git itself.
 - Scheduled workflows use UTC internally. The included cron values are already set for `08:00` and `20:00` KST.
-- The workflow installs Playwright system dependencies on Ubuntu before running browser-backed scrapers.
-- The crawler step writes both stdout and stderr to `crawler.log`, and the job now fails correctly if `main.py` exits non-zero.
+- The workflow installs Playwright Chromium with Ubuntu dependencies before running browser-backed scrapers.
+- The crawler step writes both stdout and stderr to `crawler.log`, and the job fails correctly if `main.py` exits non-zero.
 - The workflow uploads `crawler.log` as an artifact after each run.
 
 ## Debug Diagnostics
@@ -151,5 +191,5 @@ Notes:
   - HTTP status
   - HTML length
   - selector count and fallback count
-  - pre/post keyword filtering count
+  - pre/post filtering counts
 - If `DEBUG_SAVE_HTML=true`, HTML snapshots are stored in `scraper_debug/`.

@@ -20,14 +20,23 @@ PLATFORM_NEWS_QUERIES: dict[str, list[str]] = {
     "oliveyoung": [
         "올영세일",
         "올리브영 할인 행사",
+        "올리브영 세일",
     ],
     "coupang": [
         "쿠팡 할인 행사",
         "쿠팡 와우 세일",
+        "쿠팡 로켓와우 세일",
+    ],
+    "ohouse": [
+        "오늘의집 할인 행사",
+        "오늘의집 세일",
+        "오늘의집 리빙 페스타",
     ],
     "kream": [
         "KREAM 할인 행사",
         "KREAM 위크",
+        "크림 할인 행사",
+        "크림 세일",
     ],
 }
 
@@ -38,6 +47,7 @@ PLATFORM_HINTS: dict[str, tuple[str, ...]] = {
     "ssg": ("SSG", "쓱데이", "신세계"),
     "oliveyoung": ("올리브영", "Olive Young"),
     "coupang": ("쿠팡", "Coupang"),
+    "ohouse": ("오늘의집", "오늘의 집", "Ohouse", "ohouse"),
     "kream": ("KREAM", "크림"),
 }
 

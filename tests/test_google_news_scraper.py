@@ -137,6 +137,28 @@ class TestGoogleNewsScraper(unittest.TestCase):
         self.assertEqual([], result["rows"])
         self.assertIn("article_noise", result["debug"]["reasons"])
 
+    @patch("news.google_news.requests.Session")
+    def test_accepts_kream_sale_keywords(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+        response = MagicMock(status_code=200, text="""
+        <rss><channel>
+            <item>
+                <title>크림 봄 세일 최대 30% 할인 - 매체</title>
+                <link>https://news.example.com/kream-sale</link>
+                <description>크림이 스니커즈와 패션 카테고리 할인 행사를 진행한다.</description>
+                <pubDate>Thu, 12 Mar 2026 09:00:00 +0900</pubDate>
+            </item>
+        </channel></rss>
+        """)
+        session.get.return_value = response
+
+        result = scrape_google_news(timeout_seconds=1, limit=1)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("kream", result["rows"][0]["platform_hint"])
+        self.assertEqual("https://news.example.com/kream-sale", result["rows"][0]["link"])
+
 
 if __name__ == "__main__":
     unittest.main()

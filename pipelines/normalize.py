@@ -68,6 +68,8 @@ def normalize_official_rows(raw_rows: list[dict[str, Any]], default_category: st
 
 
 def normalize_community_rows(raw_rows: list[dict[str, Any]], source_site: str) -> list[dict[str, Any]]:
+    from utils.community_category import classify_community_category
+
     normalized: list[dict[str, Any]] = []
     for row in raw_rows:
         title = clean_text(row.get("title", ""), 160)
@@ -75,6 +77,9 @@ def normalize_community_rows(raw_rows: list[dict[str, Any]], source_site: str) -
         content = clean_text(row.get("content", "") or row.get("context", ""), 600)
         if not title or not link.startswith("http"):
             continue
+
+        # 자동 카테고리 분류
+        categories = classify_community_category(title, content)
 
         normalized.append(
             {
@@ -91,6 +96,7 @@ def normalize_community_rows(raw_rows: list[dict[str, Any]], source_site: str) -
                 "sale_tier": None,
                 "importance_score": None,
                 "filter_reason": None,
+                "category": categories,
                 "raw_payload": row,
             }
         )

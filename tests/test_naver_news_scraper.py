@@ -322,6 +322,37 @@ class TestNaverNewsScraper(unittest.TestCase):
         self.assertEqual([], result["rows"])
         self.assertIn("article_noise", result["debug"]["reasons"])
 
+    @patch("news.naver_news.requests.Session")
+    def test_accepts_todayhouse_sale_news_query(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        response = MagicMock(status_code=200, text='{"items":[]}')
+        response.json.return_value = {
+            "total": 1,
+            "items": [
+                {
+                    "title": "오늘의집 봄 홈 페스타 최대 70% 할인",
+                    "originallink": "https://news.example.com/ohouse-sale",
+                    "description": "오늘의집이 홈 카테고리 대규모 할인 행사를 진행한다.",
+                    "pubDate": "Thu, 12 Mar 2026 09:00:00 +0900",
+                },
+            ],
+        }
+        session.get.return_value = response
+
+        result = scrape_naver_news(
+            timeout_seconds=1,
+            limit=1,
+            client_id="id",
+            client_secret="secret",
+        )
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("ohouse", result["rows"][0]["platform_hint"])
+        normalized = normalize_official_rows(result["rows"], "news")
+        self.assertEqual("오늘의집", normalized[0]["platform"])
+
 
 if __name__ == "__main__":
     unittest.main()
