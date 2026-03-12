@@ -19,34 +19,35 @@ from utils import normalize_space, safe_print
 
 NAVER_NEWS_API_URL = "https://openapi.naver.com/v1/search/news.json"
 MAX_NEWS_AGE_DAYS = 30
+
 PARTNERSHIP_KEYWORDS = (
     "콜라보",
     "협업",
     "맞손",
     "제휴",
     "공동 프로모션",
-    "신규 회원",
+    "공동 회원",
 )
 ROUNDUP_BRAND_KEYWORDS = (
     "에이블리",
     "지그재그",
     "카카오스타일",
     "오늘의집",
-    "nOL",
-    "놀유니버스",
-    "업비트",
+    "nol",
+    "야놀자",
+    "무신사",
 )
 BRIEF_NOISE_KEYWORDS = (
     "[브리프]",
-    "[오늘의 장바구니]",
-    "[유통갤러리]",
+    "[브리핑]",
+    "[오늘의 유통가]",
     "[daily new",
     "daily new",
-    " 外",
     "외",
+    "종합",
 )
 HIGH_SIGNAL_KEYWORDS = (
-    "대표 프로모션",
+    "대규모 프로모션",
     "상반기 최대",
     "최대 할인 행사",
     "오는 19일까지",
@@ -55,18 +56,18 @@ HIGH_SIGNAL_KEYWORDS = (
     "뷰티 페스타",
 )
 RESULT_NOISE_KEYWORDS = (
-    "성료",
+    "종료",
     "거래액",
     "급증",
-    "돌풍",
+    "품절",
     "성장",
     "기록",
     "역대 최대 성과",
     "브랜드데이",
 )
 CONTEXT_NOISE_KEYWORDS = (
-    "러닝",
-    "농구",
+    "외식",
+    "야구",
     "호텔",
     "리빙",
 )
@@ -75,7 +76,25 @@ ROUNDUP_TITLE_KEYWORDS = (
     "할인 경쟁",
     "총출동",
     "맞대결",
-    "봄 세일 시작",
+    "줄줄이 시작",
+)
+PRESS_RELEASE_NOISE_KEYWORDS = (
+    "출시",
+    "론칭",
+    "입점",
+    "참가",
+    "접점",
+    "매출",
+    "성과",
+    "성장",
+    "확대",
+    "강화",
+    "본격화",
+    "전년 동기 대비",
+    "채널 내",
+    "쇼케이스",
+    "앙코르 입점회",
+    "pb 전쟁",
 )
 
 
@@ -92,7 +111,12 @@ def _parse_pub_date(value: str) -> str | None:
         return None
 
 
-def _is_recent_news(pub_date: str | None, *, today: date | None = None, max_age_days: int = MAX_NEWS_AGE_DAYS) -> bool:
+def _is_recent_news(
+    pub_date: str | None,
+    *,
+    today: date | None = None,
+    max_age_days: int = MAX_NEWS_AGE_DAYS,
+) -> bool:
     if not pub_date:
         return False
     today = today or date.today()
@@ -137,7 +161,9 @@ def _contains_roundup_noise(title: str, description: str) -> bool:
 
 def _contains_brief_noise(title: str, description: str) -> bool:
     text = normalize_space(f"{title} {description}").lower()
-    return any(keyword.lower() in text for keyword in BRIEF_NOISE_KEYWORDS)
+    if any(keyword.lower() in text for keyword in BRIEF_NOISE_KEYWORDS):
+        return True
+    return title.startswith("[") and ("브리" in title or "brief" in text)
 
 
 def _contains_high_signal_news(title: str, description: str) -> bool:
@@ -158,6 +184,27 @@ def _contains_context_noise(title: str, description: str) -> bool:
 def _contains_roundup_title_noise(title: str) -> bool:
     text = normalize_space(title).lower()
     return any(keyword.lower() in text for keyword in ROUNDUP_TITLE_KEYWORDS)
+
+
+def _contains_press_release_noise(title: str, description: str) -> bool:
+    text = normalize_space(f"{title} {description}").lower()
+    return any(keyword.lower() in text for keyword in PRESS_RELEASE_NOISE_KEYWORDS)
+
+
+def _mentions_platform_in_title(title: str, platform_key: str) -> bool:
+    lowered = normalize_space(title).lower()
+    aliases = PLATFORM_HINTS.get(platform_key, ())
+    return any(alias.lower() in lowered for alias in aliases)
+
+
+def _is_source_mention_noise(title: str, description: str, platform_key: str) -> bool:
+    if _mentions_platform_in_title(title, platform_key):
+        return False
+    combined = normalize_space(f"{title} {description}").lower()
+    aliases = PLATFORM_HINTS.get(platform_key, ())
+    if not any(alias.lower() in combined for alias in aliases):
+        return False
+    return _contains_press_release_noise(title, description)
 
 
 def _is_major_sale_candidate(title: str, description: str) -> tuple[bool, str]:
@@ -246,7 +293,10 @@ def scrape_naver_news(
 
                 data = response.json()
                 items = data.get("items", []) if isinstance(data, dict) else []
-                total_results = min(len(items), int(data.get("total", len(items)) if isinstance(data, dict) else len(items)))
+                total_results = min(
+                    len(items),
+                    int(data.get("total", len(items)) if isinstance(data, dict) else len(items)),
+                )
                 safe_print(f'[naver_news] query="{query}" total_results={total_results}')
 
                 for item in items:
@@ -278,6 +328,9 @@ def scrape_naver_news(
                     elif _contains_result_noise(title, description) and not _contains_high_signal_news(title, description):
                         keep = False
                         reason = "result_noise"
+                    elif _is_source_mention_noise(title, description, platform_key) and not _contains_high_signal_news(title, description):
+                        keep = False
+                        reason = "source_mention_noise"
                     elif _has_multiple_platforms(combined_text, platform_key):
                         keep = False
                         reason = "multi_platform_roundup"

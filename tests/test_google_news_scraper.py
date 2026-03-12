@@ -95,6 +95,27 @@ class TestGoogleNewsScraper(unittest.TestCase):
         self.assertEqual([], result["rows"])
         self.assertIn("google_redirect_link", result["debug"]["reasons"])
 
+    @patch("news.google_news.requests.Session")
+    def test_filters_source_mention_noise_article(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+        response = MagicMock(status_code=200, text="""
+        <rss><channel>
+            <item>
+                <title>헤이데이무드, 에센셜 타월 로브 세트 출시 - 매체</title>
+                <link>https://news.example.com/29cm-mention-only</link>
+                <description>29CM 이구홈위크 쇼케이스와 앙코르 입점회에 참가하며 채널 내 매출이 증가했다.</description>
+                <pubDate>Tue, 10 Mar 2026 09:00:00 +0900</pubDate>
+            </item>
+        </channel></rss>
+        """)
+        session.get.return_value = response
+
+        result = scrape_google_news(timeout_seconds=1, limit=5)
+
+        self.assertEqual([], result["rows"])
+        self.assertIn("source_mention_noise", result["debug"]["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()
