@@ -9,6 +9,7 @@ from pipelines.normalize import normalize_community_rows
 from scrapers import (
     scrape_29cm,
     scrape_coupang,
+    scrape_kream,
     scrape_musinsa,
     scrape_ohouse,
     scrape_oliveyoung,
@@ -42,6 +43,7 @@ def main() -> None:
         ("SsgScraper", lambda **kwargs: scrape_ssg(**kwargs, enable_browser=True), "general"),
         ("MusinsaScraper", scrape_musinsa, "fashion"),
         ("CoupangScraper", scrape_coupang, "general"),
+        ("KreamScraper", scrape_kream, "fashion"),
         ("OhouseScraper", scrape_ohouse, "living"),
         ("OliveyoungScraper", lambda **kwargs: scrape_oliveyoung(**kwargs, enable_browser=True), "beauty"),
         (
