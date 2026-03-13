@@ -268,8 +268,49 @@ def scrape_kream(
             debug["http_status"].append("ERR")
             debug["html_length"].append("0")
             debug["reasons"].append(f"request_error:{type(exc).__name__}")
-            debug["failure_reason"] = f"request_error:{type(exc).__name__}"
-            print(f"[kream] failure_reason={debug['failure_reason']}")
+            cloudflare_html, cloudflare_reasons = fetch_cloudflare_rendered_html(
+                url=url,
+                user_agent=USER_AGENT,
+                timeout_seconds=timeout_seconds,
+            )
+            debug["reasons"].extend(cloudflare_reasons)
+            if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
+                html = cloudflare_html
+                debug["reasons"].append("cloudflare_seed_fallback")
+                print(f"[kream] cloudflare_html_length={len(html)}")
+            else:
+                if cloudflare_html.strip():
+                    debug["reasons"].append("kream_cloudflare_error_page")
+                debug["failure_reason"] = f"request_error:{type(exc).__name__}"
+                print(f"[kream] failure_reason={debug['failure_reason']}")
+                if debug_save_html:
+                    _save_snapshot(debug_dir, "kream", i, cloudflare_html)
+                continue
+
+            debug["valid_source_page_count"] += 1
+            soup = BeautifulSoup(html, "html.parser")
+            seed_row = _build_seed_row(soup, url)
+            seed_title_key = normalize_space(seed_row["title"]).lower() if seed_row else ""
+            if seed_row and seed_title_key not in seen_seed_titles and len(rows) < limit:
+                seen_seed_titles.add(seed_title_key)
+                rows.append(seed_row)
+                debug["filtered_candidates"] += 1
+                print(f"[kream] seed_candidate={seed_row['title']}")
+
+            selected = soup.select("a[href*='exhibitions'], a[href*='event'], a[href*='campaign'], a[href*='search']")
+            if not selected:
+                debug["reasons"].append("selector_zero")
+                fallback_selected = soup.select("a[href]")
+                debug["fallback_candidates"] += len(fallback_selected)
+                selected = fallback_selected
+
+            extracted, pre_filter_count = _extract_rows(selected, url, max(0, limit - len(rows)))
+            debug["raw_candidates"] += pre_filter_count
+            debug["filtered_candidates"] += len(extracted)
+            rows.extend(extracted)
+            debug["items_extracted"] = len(rows)
+            print(f"[kream] raw_candidates={debug['raw_candidates']}")
+            print(f"[kream] filtered_candidates={debug['filtered_candidates']}")
             continue
 
     if not rows:

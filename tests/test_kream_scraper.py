@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import requests
+
 from scrapers.kream import scrape_kream
 
 
@@ -121,6 +123,38 @@ class TestKreamScraper(unittest.TestCase):
 
         self.assertEqual(1, len(result["rows"]))
         self.assertEqual("KREAM WEEK SALE", result["rows"][0]["title"])
+        self.assertIn("cloudflare_seed_fallback", result["debug"]["reasons"])
+        self.assertEqual("", result["debug"]["failure_reason"])
+
+    @patch("scrapers.kream.fetch_cloudflare_rendered_html")
+    @patch("scrapers.kream.requests.Session")
+    def test_cloudflare_fallback_can_recover_when_request_errors(
+        self,
+        session_cls,
+        cloudflare_fetch,
+    ) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        session.get.side_effect = requests.ConnectionError("blocked")
+        cloudflare_fetch.return_value = (
+            """
+            <html>
+              <head>
+                <title>KREAM WEEK SALE</title>
+                <meta name="description" content="스니커즈 3/20 ~ 3/26 할인 행사" />
+              </head>
+              <body><h1>KREAM WEEK SALE</h1></body>
+            </html>
+            """,
+            ["cloudflare_content_fetch"],
+        )
+
+        result = scrape_kream(timeout_seconds=1, limit=5, debug_save_html=False)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("KREAM WEEK SALE", result["rows"][0]["title"])
+        self.assertIn("request_error:ConnectionError", result["debug"]["reasons"])
         self.assertIn("cloudflare_seed_fallback", result["debug"]["reasons"])
         self.assertEqual("", result["debug"]["failure_reason"])
 
