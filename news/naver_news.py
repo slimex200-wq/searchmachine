@@ -109,6 +109,15 @@ ARTICLE_NOISE_KEYWORDS = (
     "로드숍",
     "lx하우시스",
     "신한은행",
+    "더블유씬",
+    "윤마치",
+    "라이프 매거진",
+)
+
+CONTENT_MARKETING_NOISE_KEYWORDS = (
+    "더블유씬",
+    "윤마치",
+    "라이프 매거진",
 )
 
 
@@ -208,6 +217,11 @@ def _contains_press_release_noise(title: str, description: str) -> bool:
 def _contains_article_noise(title: str, description: str) -> bool:
     text = normalize_space(f"{title} {description}").lower()
     return any(keyword.lower() in text for keyword in ARTICLE_NOISE_KEYWORDS)
+
+
+def _contains_content_marketing_noise(title: str, description: str) -> bool:
+    text = normalize_space(f"{title} {description}").lower()
+    return any(keyword.lower() in text for keyword in CONTENT_MARKETING_NOISE_KEYWORDS)
 
 
 def _mentions_platform_in_title(title: str, platform_key: str) -> bool:
@@ -344,6 +358,9 @@ def scrape_naver_news(
                     elif _contains_context_noise(title, description):
                         keep = False
                         reason = "context_noise"
+                    elif _contains_content_marketing_noise(title, description):
+                        keep = False
+                        reason = "content_marketing_noise"
                     elif _contains_article_noise(title, description) and not _contains_high_signal_news(title, description):
                         keep = False
                         reason = "article_noise"

@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from scrapers.browser_utils import fetch_playwright_page_html
 from utils import normalize_link, normalize_space
 
 KEYWORDS = (
@@ -29,13 +30,15 @@ KEYWORDS = (
 )
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+VIEWPORT = {"width": 1440, "height": 900}
 
 
 def _seed_urls() -> list[str]:
     return [
+        "https://kream.co.kr/",
         "https://kream.co.kr/exhibitions",
-        "https://kream.co.kr/search?keyword=세일",
-        "https://kream.co.kr/search?keyword=이벤트",
+        "https://kream.co.kr/search?keyword=크림",
+        "https://kream.co.kr/search?keyword=스니커즈",
     ]
 
 
@@ -67,6 +70,19 @@ def _extract_date_text(text: str) -> str:
         normalized,
     )
     return match.group(0) if match else normalized
+
+
+def _looks_like_kream_error_page(html: str) -> bool:
+    lowered = html.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "<title>500",
+            "internal server error",
+            "something went wrong",
+            "error occurred",
+        )
+    )
 
 
 def _build_seed_row(soup: BeautifulSoup, source_url: str) -> dict[str, Any] | None:
@@ -148,6 +164,7 @@ def scrape_kream(
     )
 
     rows: list[dict[str, Any]] = []
+    seen_seed_titles: set[str] = set()
     debug = {
         "requested_url": [],
         "http_status": [],
@@ -172,25 +189,44 @@ def scrape_kream(
             print(f"[kream] http_status={resp.status_code}")
             print(f"[kream] html_length={len(html)}")
 
-            if resp.status_code != 200:
-                debug["reasons"].append(f"http_status_{resp.status_code}")
-                if debug["valid_source_page_count"] == 0 and not debug["failure_reason"]:
-                    debug["failure_reason"] = "all_seed_urls_failed"
-                if debug_save_html:
-                    _save_snapshot(debug_dir, "kream", i, html)
-                continue
+            if resp.status_code != 200 or not html.strip():
+                if resp.status_code != 200:
+                    debug["reasons"].append(f"http_status_{resp.status_code}")
+                if not html.strip():
+                    debug["reasons"].append("empty_html")
+                try:
+                    browser_html, browser_reasons = fetch_playwright_page_html(
+                        url=url,
+                        viewport=VIEWPORT,
+                        user_agent=USER_AGENT,
+                        timeout_ms=timeout_seconds * 1000,
+                    )
+                except Exception as exc:
+                    browser_html = ""
+                    browser_reasons = [f"browser_fallback_error:{type(exc).__name__}"]
+                debug["reasons"].extend(browser_reasons)
+                if browser_html.strip() and not _looks_like_kream_error_page(browser_html):
+                    html = browser_html
+                    debug["reasons"].append("browser_seed_fallback")
+                    print(f"[kream] browser_html_length={len(html)}")
+                else:
+                    if browser_html.strip():
+                        debug["reasons"].append("kream_browser_error_page")
+                    if debug["valid_source_page_count"] == 0 and not debug["failure_reason"]:
+                        debug["failure_reason"] = "all_seed_urls_failed"
+                    if debug_save_html:
+                        _save_snapshot(debug_dir, "kream", i, browser_html or html)
+                    continue
 
             debug["valid_source_page_count"] += 1
             if debug["failure_reason"] == "all_seed_urls_failed":
                 debug["failure_reason"] = ""
 
-            if not html.strip():
-                debug["reasons"].append("empty_html")
-                continue
-
             soup = BeautifulSoup(html, "html.parser")
             seed_row = _build_seed_row(soup, url)
-            if seed_row and len(rows) < limit:
+            seed_title_key = normalize_space(seed_row["title"]).lower() if seed_row else ""
+            if seed_row and seed_title_key not in seen_seed_titles and len(rows) < limit:
+                seen_seed_titles.add(seed_title_key)
                 rows.append(seed_row)
                 debug["filtered_candidates"] += 1
                 print(f"[kream] seed_candidate={seed_row['title']}")

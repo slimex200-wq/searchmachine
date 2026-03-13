@@ -420,6 +420,35 @@ class TestNaverNewsScraper(unittest.TestCase):
         normalized = normalize_official_rows(result["rows"], "news")
         self.assertEqual("KREAM", normalized[0]["platform"])
 
+    @patch("news.naver_news.requests.Session")
+    def test_filters_out_wscene_content_articles(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        response = MagicMock(status_code=200, text='{"items":[]}')
+        response.json.return_value = {
+            "total": 1,
+            "items": [
+                {
+                    "title": "W컨셉, 라이프 매거진 더블유씬 론칭…윤마치와 첫 콘텐츠 공개",
+                    "originallink": "https://news.example.com/wscene-launch",
+                    "description": "오는 19일까지 참여 브랜드 대상으로 최대 42% 할인 행사를 진행한다.",
+                    "pubDate": "Fri, 13 Mar 2026 09:00:00 +0900",
+                },
+            ],
+        }
+        session.get.return_value = response
+
+        result = scrape_naver_news(
+            timeout_seconds=1,
+            limit=5,
+            client_id="id",
+            client_secret="secret",
+        )
+
+        self.assertEqual([], result["rows"])
+        self.assertIn("content_marketing_noise", result["debug"]["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

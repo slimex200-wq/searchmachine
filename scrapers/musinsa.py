@@ -232,7 +232,12 @@ def _extract_date_window(text: str) -> tuple[str | None, str | None]:
     if len(inferred_dates) < 2:
         return None, None
 
-    return min(inferred_dates).isoformat(), max(inferred_dates).isoformat()
+    start = min(inferred_dates)
+    end = max(inferred_dates)
+    if (end - start).days > 45:
+        return None, None
+
+    return start.isoformat(), end.isoformat()
 
 
 def _extract_json_title(next_data: dict[str, Any] | None) -> str:

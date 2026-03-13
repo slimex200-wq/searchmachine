@@ -14,6 +14,14 @@ class TestMusinsaScraper(unittest.TestCase):
         self.assertEqual("2026-03-09", start_date)
         self.assertEqual("2026-03-18", end_date)
 
+    def test_extract_date_window_rejects_implausible_long_span(self) -> None:
+        start_date, end_date = _extract_date_window(
+            "부티크 주말특가 01.02 안내 이후 12.30 일정 공지와 26SS 신상 소개"
+        )
+
+        self.assertIsNone(start_date)
+        self.assertIsNone(end_date)
+
     def test_extracts_video_poster_from_campaign_container(self) -> None:
         soup = BeautifulSoup(
             """
