@@ -55,6 +55,27 @@ class TestOhouseScraper(unittest.TestCase):
         self.assertIn("playwright_html_fetch", debug["reasons"])
         self.assertIn("browser_access_denied", debug["reasons"])
 
+    @patch("scrapers.ohouse.requests.Session")
+    def test_contents_seed_can_extract_public_project_link(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+        contents_html = """
+        <html>
+          <body>
+            <a href="https://contents.ohou.se/projects/5555">오늘의집 리빙 페스타 특가 모음</a>
+          </body>
+        </html>
+        """
+        response_ok = MagicMock(status_code=200, text=contents_html)
+        response_403 = MagicMock(status_code=403, text="<html>blocked</html>")
+        session.get.side_effect = [response_403, response_ok, response_403, response_403]
+
+        result = scrape_ohouse(timeout_seconds=1, limit=5, debug_save_html=False)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("오늘의집 리빙 페스타 특가 모음", result["rows"][0]["title"])
+        self.assertEqual("https://contents.ohou.se/projects/5555", result["rows"][0]["link"])
+
 
 if __name__ == "__main__":
     unittest.main()

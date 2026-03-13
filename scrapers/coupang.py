@@ -30,9 +30,10 @@ KEYWORDS = (
 
 def _seed_urls() -> list[str]:
     return [
-        "https://pages.coupang.com/p/158622",
-        "https://pages.coupang.com/p/150093",
-        "https://pages.coupang.com/p/136197",
+        "https://www.coupang.com/",
+        "https://www.coupang.com/np/goldbox",
+        "https://pages.coupang.com/",
+        "https://www.coupang.com/np/campaigns",
     ]
 
 
@@ -49,7 +50,7 @@ def _is_allowed_coupang_link(link: str) -> bool:
     path = parsed.path.lower()
     if not (host.endswith("coupang.com") or host.endswith("pages.coupang.com")):
         return False
-    return any(token in path for token in ("/p/", "/np/campaigns", "/vp/events", "/f/"))
+    return any(token in path for token in ("/p/", "/np/campaigns", "/vp/events", "/f/", "/np/goldbox"))
 
 
 def _contains_keyword(*parts: str) -> bool:
@@ -201,7 +202,9 @@ def scrape_coupang(
                 debug["filtered_candidates"] += 1
                 print(f"[coupang] seed_candidate={seed_row['title']}")
 
-            selected = soup.select("a[href*='/p/'], a[href*='campaign'], a[href*='event'], a[href*='sale']")
+            selected = soup.select(
+                "a[href*='/p/'], a[href*='campaign'], a[href*='event'], a[href*='sale'], a[href*='goldbox']"
+            )
             if not selected:
                 debug["reasons"].append("selector_zero")
                 fallback_selected = soup.select("a[href]")

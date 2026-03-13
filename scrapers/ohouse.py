@@ -10,15 +10,15 @@ from bs4 import BeautifulSoup
 from scrapers.browser_utils import fetch_playwright_page_html
 from utils import normalize_link, normalize_space
 
-KEYWORDS = ("세일", "이벤트", "기획전", "특가", "페어", "할인", "o!sale", "집요한세일", "전시")
+KEYWORDS = ("세일", "이벤트", "기획전", "특가", "페어", "할인", "o!sale", "집요한세일", "전시", "페스타")
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
 
 def _seed_urls() -> list[str]:
     return [
-        "https://ohou.se/exhibitions",
-        "https://ohou.se/events",
-        "https://store.ohou.se/exhibitions",
+        "https://ohou.se/",
+        "https://contents.ohou.se/",
+        "https://contents.ohou.se/projects",
         "https://ohou.se/store",
     ]
 
@@ -32,6 +32,10 @@ def _save_snapshot(debug_dir: str, source: str, idx: int, html: str) -> None:
 
 def _is_allowed_ohouse_link(link: str) -> bool:
     host = urlparse(link).netloc.lower()
+    parsed = urlparse(link)
+    path = parsed.path.lower()
+    if host.endswith("contents.ohou.se"):
+        return any(token in path for token in ("/projects/", "/magazines/", "/cards/"))
     return host.endswith("ohou.se") or host.endswith("store.ohou.se") or host.endswith("todayhouse.com")
 
 
@@ -121,7 +125,10 @@ def scrape_ohouse(
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
-            selected = soup.select("a[href*='exhibitions'], a[href*='events'], a[href*='sale'], a[href*='store']")
+            selected = soup.select(
+                "a[href*='exhibitions'], a[href*='events'], a[href*='sale'], a[href*='store'], "
+                "a[href*='contents.ohou.se/projects'], a[href*='contents.ohou.se/magazines'], a[href*='contents.ohou.se/cards']"
+            )
             print(f"[ohouse] selector_count={len(selected)}")
 
             if not selected:

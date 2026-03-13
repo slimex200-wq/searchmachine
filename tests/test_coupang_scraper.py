@@ -12,7 +12,7 @@ class TestCoupangScraper(unittest.TestCase):
 
         response_404 = MagicMock(status_code=404, text="<html>not found</html>")
         response_403 = MagicMock(status_code=403, text="<html>denied</html>")
-        session.get.side_effect = [response_404, response_404, response_403]
+        session.get.side_effect = [response_404, response_404, response_403, response_403]
 
         result = scrape_coupang(timeout_seconds=1, limit=5, debug_save_html=False)
         debug = result["debug"]
@@ -43,7 +43,7 @@ class TestCoupangScraper(unittest.TestCase):
         """
         response_ok = MagicMock(status_code=200, text=html)
         response_404 = MagicMock(status_code=404, text="<html>not found</html>")
-        session.get.side_effect = [response_ok, response_404, response_404]
+        session.get.side_effect = [response_ok, response_404, response_404, response_404]
 
         result = scrape_coupang(timeout_seconds=1, limit=5, debug_save_html=False)
         debug = result["debug"]
@@ -55,6 +55,28 @@ class TestCoupangScraper(unittest.TestCase):
         self.assertEqual(1, debug["valid_source_page_count"])
         self.assertEqual(1, debug["filtered_candidates"])
         self.assertEqual("", debug["failure_reason"])
+
+    @patch("scrapers.coupang.requests.Session")
+    def test_homepage_seed_can_extract_pages_link(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        html = """
+        <html>
+          <body>
+            <a href="https://pages.coupang.com/p/777777">와우 세일 기획전</a>
+          </body>
+        </html>
+        """
+        response_ok = MagicMock(status_code=200, text=html)
+        response_404 = MagicMock(status_code=404, text="<html>not found</html>")
+        session.get.side_effect = [response_ok, response_404, response_404, response_404]
+
+        result = scrape_coupang(timeout_seconds=1, limit=5, debug_save_html=False)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("와우 세일 기획전", result["rows"][0]["title"])
+        self.assertEqual("https://pages.coupang.com/p/777777", result["rows"][0]["link"])
 
 
 if __name__ == "__main__":

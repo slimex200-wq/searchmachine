@@ -26,6 +26,8 @@ KEYWORDS = (
 )
 
 HUB_URLS = [
+    "https://www.oliveyoung.co.kr/store/main/getStoreMain.do",
+    "https://m.oliveyoung.co.kr/m/main/getMMain.do",
     "https://www.oliveyoung.co.kr/store/event/getEventList.do",
     "https://www.oliveyoung.co.kr/store/planshop/getPlanShopList.do",
     "https://m.oliveyoung.co.kr/m/event/getEventList.do",
