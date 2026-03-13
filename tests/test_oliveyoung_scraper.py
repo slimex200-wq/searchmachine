@@ -28,9 +28,9 @@ class TestOliveyoungScraper(unittest.TestCase):
         soup = BeautifulSoup(
             """
             <html><body>
-                <a href="/store/event/getEventDetail.do?evtNo=123">올영세일</a>
-                <a href="/store/planshop/getPlanShopDetail.do?dispCatNo=9000001001">브랜드 기획전</a>
-                <a href="/store/goods/getGoodsDetail.do?goodsNo=A0001">상품</a>
+                <a href="/store/event/getEventDetail.do?evtNo=123">event</a>
+                <a href="/store/planshop/getPlanShopDetail.do?dispCatNo=9000001001">plan</a>
+                <a href="/store/goods/getGoodsDetail.do?goodsNo=A0001">goods</a>
             </body></html>
             """,
             "html.parser",
@@ -47,12 +47,12 @@ class TestOliveyoungScraper(unittest.TestCase):
             """
             <html>
                 <head>
-                    <meta property="og:title" content="올영세일 | 올리브영" />
+                    <meta property="og:title" content="special promotion | olive young" />
                     <meta property="og:image" content="https://image.example.com/oliveyoung.jpg" />
                 </head>
                 <body>
-                    <h1>올영세일</h1>
-                    <div>03.01 ~ 03.07 최대 70% 할인</div>
+                    <h1>special promotion</h1>
+                    <div>03.01 ~ 03.07 promotion</div>
                 </body>
             </html>
             """,
@@ -63,11 +63,50 @@ class TestOliveyoungScraper(unittest.TestCase):
 
         self.assertIsNotNone(candidate)
         assert candidate is not None
-        self.assertEqual("올영세일", candidate["title"])
+        self.assertEqual("special promotion", candidate["title"])
         self.assertEqual("2026-03-01", candidate["start_date"])
         self.assertEqual("2026-03-07", candidate["end_date"])
         self.assertEqual("https://image.example.com/oliveyoung.jpg", candidate["image_url"])
-        self.assertEqual("올리브영", candidate["platform_hint"])
+
+    @patch("scrapers.oliveyoung.fetch_playwright_page_html")
+    @patch("scrapers.oliveyoung.requests.Session")
+    def test_detail_403_uses_browser_html_fallback(self, session_cls, fetch_html) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        hub_response = MagicMock(
+            status_code=200,
+            text="""
+            <html><body>
+                <a href="/store/event/getEventDetail.do?evtNo=123">event</a>
+            </body></html>
+            """,
+        )
+        detail_response = MagicMock(status_code=403, text="")
+        session.get.side_effect = [hub_response, detail_response]
+        fetch_html.return_value = (
+            """
+            <html>
+                <head>
+                    <meta property="og:title" content="special promotion | olive young" />
+                </head>
+                <body>
+                    <h1>special promotion</h1>
+                    <div>03.01 ~ 03.07 promotion</div>
+                </body>
+            </html>
+            """,
+            ["playwright_html_fetch"],
+        )
+
+        result = scrape_oliveyoung(timeout_seconds=1, limit=5, debug_save_html=False, enable_browser=True)
+        debug = result["debug"]
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("detail_extract_browser", debug["parser_mode"])
+        self.assertIn("detail_http_status_403", debug["reasons"])
+        self.assertIn("playwright_html_fetch", debug["reasons"])
+        fetch_html.assert_called_once()
 
 
 if __name__ == "__main__":

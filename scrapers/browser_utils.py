@@ -88,3 +88,29 @@ def collect_playwright_visible_links(
             browser.close()
 
     return detail_links[:limit], reasons, selected_hub_url
+
+
+def fetch_playwright_page_html(
+    url: str,
+    viewport: dict[str, int],
+    user_agent: str,
+    timeout_ms: int = 60000,
+) -> tuple[str, list[str]]:
+    if sync_playwright is None:
+        raise RuntimeError("playwright_unavailable")
+
+    reasons: list[str] = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        try:
+            page = browser.new_page(viewport=viewport, user_agent=user_agent)
+            try:
+                page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+                page.wait_for_timeout(2000)
+                reasons.append("playwright_html_fetch")
+                return page.content(), reasons
+            finally:
+                page.close()
+        finally:
+            browser.close()

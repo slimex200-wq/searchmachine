@@ -8,7 +8,7 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
-from scrapers.browser_utils import collect_playwright_visible_links
+from scrapers.browser_utils import collect_playwright_visible_links, fetch_playwright_page_html
 from scrapers.scraper_utils import build_signal_row, init_debug_state
 from utils import normalize_link, normalize_space
 
@@ -34,11 +34,27 @@ HUB_URLS = [
 
 BROWSER_ENTRY_CONFIGS = [
     {
+        "url": "https://www.oliveyoung.co.kr/store/main/getStoreMain.do",
+        "viewport": {"width": 1440, "height": 2200},
+        "user_agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+    },
+    {
         "url": "https://www.oliveyoung.co.kr/store/event/getEventList.do",
         "viewport": {"width": 1440, "height": 2200},
         "user_agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+    },
+    {
+        "url": "https://m.oliveyoung.co.kr/m/main/getMMain.do",
+        "viewport": {"width": 430, "height": 2200},
+        "user_agent": (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+            "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         ),
     },
     {
@@ -50,6 +66,14 @@ BROWSER_ENTRY_CONFIGS = [
         ),
     },
 ]
+
+DETAIL_BROWSER_CONFIG = {
+    "viewport": {"width": 1440, "height": 2200},
+    "user_agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+}
 
 
 def _save_snapshot(debug_dir: str, source: str, idx: int, html: str) -> None:
@@ -275,12 +299,29 @@ def scrape_oliveyoung(
 
             if response.status_code != 200:
                 debug["reasons"].append(f"detail_http_status_{response.status_code}")
-                continue
+                if not enable_browser:
+                    continue
+                try:
+                    html, browser_reasons = fetch_playwright_page_html(
+                        url=detail_url,
+                        viewport=DETAIL_BROWSER_CONFIG["viewport"],
+                        user_agent=DETAIL_BROWSER_CONFIG["user_agent"],
+                    )
+                    debug["reasons"].extend(browser_reasons)
+                    debug["parser_mode"] = "detail_extract_browser"
+                    print("[oliveyoung] parser_mode=detail_extract_browser")
+                    print(f"[oliveyoung] browser_html_length={len(html)}")
+                    if not html.strip():
+                        continue
+                except Exception as exc:  # pragma: no cover
+                    debug["reasons"].append(f"detail_playwright_error:{type(exc).__name__}")
+                    continue
 
             debug["detail_pages_parsed"] += 1
             debug["raw_candidates"] += 1
-            debug["parser_mode"] = "detail_extract"
-            print("[oliveyoung] parser_mode=detail_extract")
+            if debug["parser_mode"] != "detail_extract_browser":
+                debug["parser_mode"] = "detail_extract"
+                print("[oliveyoung] parser_mode=detail_extract")
 
             candidate = _extract_candidate(BeautifulSoup(html, "html.parser"), detail_url)
             if candidate:
