@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from scrapers.browser_utils import fetch_playwright_page_html
+from scrapers.browser_utils import fetch_cloudflare_rendered_html, fetch_playwright_page_html
 from utils import normalize_link, normalize_space
 
 KEYWORDS = (
@@ -212,11 +212,24 @@ def scrape_kream(
                 else:
                     if browser_html.strip():
                         debug["reasons"].append("kream_browser_error_page")
-                    if debug["valid_source_page_count"] == 0 and not debug["failure_reason"]:
-                        debug["failure_reason"] = "all_seed_urls_failed"
-                    if debug_save_html:
-                        _save_snapshot(debug_dir, "kream", i, browser_html or html)
-                    continue
+                    cloudflare_html, cloudflare_reasons = fetch_cloudflare_rendered_html(
+                        url=url,
+                        user_agent=USER_AGENT,
+                        timeout_seconds=timeout_seconds,
+                    )
+                    debug["reasons"].extend(cloudflare_reasons)
+                    if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
+                        html = cloudflare_html
+                        debug["reasons"].append("cloudflare_seed_fallback")
+                        print(f"[kream] cloudflare_html_length={len(html)}")
+                    else:
+                        if cloudflare_html.strip():
+                            debug["reasons"].append("kream_cloudflare_error_page")
+                        if debug["valid_source_page_count"] == 0 and not debug["failure_reason"]:
+                            debug["failure_reason"] = "all_seed_urls_failed"
+                        if debug_save_html:
+                            _save_snapshot(debug_dir, "kream", i, cloudflare_html or browser_html or html)
+                        continue
 
             debug["valid_source_page_count"] += 1
             if debug["failure_reason"] == "all_seed_urls_failed":

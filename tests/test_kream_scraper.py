@@ -30,8 +30,8 @@ class TestKreamScraper(unittest.TestCase):
         html = """
         <html>
           <head>
-            <title>KREAM 스니커즈 세일</title>
-            <meta name="description" content="리셀 인기 모델 대상 3/14 ~ 3/20 할인 혜택" />
+            <title>KREAM SALE EVENT</title>
+            <meta name="description" content="KREAM WEEK 3/14 ~ 3/20 discount" />
           </head>
           <body>
             <h1>KREAM WEEK EVENT</h1>
@@ -46,27 +46,34 @@ class TestKreamScraper(unittest.TestCase):
         debug = result["debug"]
 
         self.assertEqual(1, len(result["rows"]))
-        self.assertEqual("KREAM 스니커즈 세일", result["rows"][0]["title"])
+        self.assertEqual("KREAM SALE EVENT", result["rows"][0]["title"])
         self.assertEqual("KREAM", result["rows"][0]["platform_hint"])
         self.assertEqual("3/14", result["rows"][0]["date_text"])
         self.assertEqual(1, debug["valid_source_page_count"])
         self.assertEqual("", debug["failure_reason"])
 
     @patch("scrapers.kream.fetch_playwright_page_html")
+    @patch("scrapers.kream.fetch_cloudflare_rendered_html")
     @patch("scrapers.kream.requests.Session")
-    def test_browser_fallback_can_recover_from_500_seed_url(self, session_cls, browser_fetch) -> None:
+    def test_browser_fallback_can_recover_from_500_seed_url(
+        self,
+        session_cls,
+        cloudflare_fetch,
+        browser_fetch,
+    ) -> None:
         session = MagicMock()
         session_cls.return_value = session
 
         response_500 = MagicMock(status_code=500, text="")
         response_404 = MagicMock(status_code=404, text="<html>not found</html>")
         session.get.side_effect = [response_500, response_404, response_404, response_404]
+        cloudflare_fetch.return_value = ("", ["cloudflare_unconfigured"])
         browser_fetch.return_value = (
             """
             <html>
               <head>
-                <title>KREAM 한정판 위크</title>
-                <meta name="description" content="한정판 스니커즈 3/18 ~ 3/24 할인 이벤트" />
+                <title>KREAM WEEK SALE</title>
+                <meta name="description" content="스니커즈 3/18 ~ 3/24 할인 이벤트" />
               </head>
               <body><h1>KREAM WEEK</h1></body>
             </html>
@@ -77,8 +84,44 @@ class TestKreamScraper(unittest.TestCase):
         result = scrape_kream(timeout_seconds=1, limit=5, debug_save_html=False)
 
         self.assertEqual(1, len(result["rows"]))
-        self.assertEqual("KREAM 한정판 위크", result["rows"][0]["title"])
+        self.assertEqual("KREAM WEEK SALE", result["rows"][0]["title"])
         self.assertIn("browser_seed_fallback", result["debug"]["reasons"])
+        self.assertEqual("", result["debug"]["failure_reason"])
+
+    @patch("scrapers.kream.fetch_playwright_page_html")
+    @patch("scrapers.kream.fetch_cloudflare_rendered_html")
+    @patch("scrapers.kream.requests.Session")
+    def test_cloudflare_fallback_can_recover_when_browser_fails(
+        self,
+        session_cls,
+        cloudflare_fetch,
+        browser_fetch,
+    ) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        response_500 = MagicMock(status_code=500, text="")
+        response_404 = MagicMock(status_code=404, text="<html>not found</html>")
+        session.get.side_effect = [response_500, response_404, response_404, response_404]
+        browser_fetch.return_value = ("<html><title>500</title></html>", ["playwright_html_fetch"])
+        cloudflare_fetch.return_value = (
+            """
+            <html>
+              <head>
+                <title>KREAM WEEK SALE</title>
+                <meta name="description" content="스니커즈 3/19 ~ 3/25 할인 행사" />
+              </head>
+              <body><h1>KREAM WEEK SALE</h1></body>
+            </html>
+            """,
+            ["cloudflare_content_fetch"],
+        )
+
+        result = scrape_kream(timeout_seconds=1, limit=5, debug_save_html=False)
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("KREAM WEEK SALE", result["rows"][0]["title"])
+        self.assertIn("cloudflare_seed_fallback", result["debug"]["reasons"])
         self.assertEqual("", result["debug"]["failure_reason"])
 
 

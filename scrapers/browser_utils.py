@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
+
+import requests
 
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -162,3 +165,57 @@ def fetch_playwright_page_html(
                 page.close()
         finally:
             browser.close()
+
+
+def fetch_cloudflare_rendered_html(
+    url: str,
+    user_agent: str,
+    timeout_seconds: int = 20,
+) -> tuple[str, list[str]]:
+    account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    api_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+    if not account_id or not api_token:
+        return "", ["cloudflare_unconfigured"]
+
+    endpoint = (
+        f"https://api.cloudflare.com/client/v4/accounts/{account_id}"
+        "/browser-rendering/content"
+    )
+    payload = {
+        "url": url,
+        "userAgent": user_agent,
+        "gotoOptions": {"waitUntil": "networkidle0"},
+    }
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.post(
+            endpoint,
+            json=payload,
+            headers=headers,
+            timeout=timeout_seconds,
+        )
+    except requests.RequestException as exc:
+        return "", [f"cloudflare_request_error:{type(exc).__name__}"]
+
+    reasons = [f"cloudflare_http_status_{response.status_code}"]
+    if response.status_code != 200:
+        return "", reasons
+
+    try:
+        data = response.json()
+    except ValueError:
+        return "", reasons + ["cloudflare_invalid_json"]
+
+    if not data.get("success"):
+        return "", reasons + ["cloudflare_unsuccessful"]
+
+    result = data.get("result", "")
+    html = result if isinstance(result, str) else ""
+    if not html.strip():
+        return "", reasons + ["cloudflare_empty_html"]
+
+    return html, reasons + ["cloudflare_content_fetch"]
