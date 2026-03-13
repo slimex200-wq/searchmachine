@@ -389,6 +389,37 @@ class TestNaverNewsScraper(unittest.TestCase):
             or any(reason.startswith("platform_mismatch:") for reason in result["debug"]["reasons"])
         )
 
+    @patch("news.naver_news.requests.Session")
+    def test_accepts_kream_sale_news_query(self, session_cls) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+
+        response = MagicMock(status_code=200, text='{"items":[]}')
+        response.json.return_value = {
+            "total": 1,
+            "items": [
+                {
+                    "title": "크림 한정판 위크 최대 30% 할인",
+                    "originallink": "https://news.example.com/kream-week-sale",
+                    "description": "KREAM이 스니커즈와 리셀 카테고리 할인 행사를 진행한다.",
+                    "pubDate": "Thu, 12 Mar 2026 09:00:00 +0900",
+                },
+            ],
+        }
+        session.get.return_value = response
+
+        result = scrape_naver_news(
+            timeout_seconds=1,
+            limit=1,
+            client_id="id",
+            client_secret="secret",
+        )
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("kream", result["rows"][0]["platform_hint"])
+        normalized = normalize_official_rows(result["rows"], "news")
+        self.assertEqual("KREAM", normalized[0]["platform"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,7 +52,7 @@ class SaleDiscoveryEngine:
         normalized_rows = normalize_official_rows(raw_rows, default_category=default_category)
         stats.normalized = len(normalized_rows)
         safe_print(f"[{source_label}] normalized_count={stats.normalized}")
-        norm_debug = self._log_official_normalization_debug(source_label, raw_rows, default_category)
+        norm_debug = self._log_official_normalization_debug(source_label, raw_rows, normalized_rows)
         stats.normalized_success_count = norm_debug["success_count"]
         stats.normalized_failure_count = norm_debug["failure_count"]
         stats.normalize_failure_reasons = ",".join(norm_debug["failure_reasons"])
@@ -306,9 +306,8 @@ class SaleDiscoveryEngine:
     def _log_official_normalization_debug(
         source_label: str,
         raw_rows: list[dict],
-        default_category: str,
+        normalized_rows: list[dict],
     ) -> dict[str, Any]:
-        normalized_rows = normalize_official_rows(raw_rows, default_category=default_category)
         normalized_success_count = len(normalized_rows)
         normalized_failure_count = max(0, len(raw_rows) - normalized_success_count)
         normalize_failure_reasons: list[str] = []

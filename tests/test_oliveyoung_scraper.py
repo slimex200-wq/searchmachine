@@ -108,6 +108,81 @@ class TestOliveyoungScraper(unittest.TestCase):
         self.assertIn("playwright_html_fetch", debug["reasons"])
         fetch_html.assert_called_once()
 
+    @patch("scrapers.oliveyoung.fetch_playwright_page_html")
+    @patch("scrapers.oliveyoung.collect_playwright_visible_links")
+    @patch("scrapers.oliveyoung.requests.Session")
+    def test_browser_hub_html_extracts_links_when_seed_requests_fail(
+        self,
+        session_cls,
+        collect_links,
+        fetch_html,
+    ) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+        session.get.return_value = MagicMock(status_code=403, text="<html>blocked</html>")
+
+        collect_links.return_value = ([], [], "")
+        fetch_html.side_effect = [
+            (
+                """
+                <html><body>
+                    <a href="/store/event/getEventDetail.do?evtNo=123">event</a>
+                </body></html>
+                """,
+                ["playwright_html_fetch"],
+            ),
+            (
+                """
+                <html>
+                    <head>
+                        <meta property="og:title" content="special promotion | olive young" />
+                    </head>
+                    <body>
+                        <h1>special promotion</h1>
+                        <div>03.01 ~ 03.07 promotion</div>
+                    </body>
+                </html>
+                """,
+                ["playwright_html_fetch"],
+            ),
+        ]
+
+        result = scrape_oliveyoung(timeout_seconds=1, limit=5, debug_save_html=False, enable_browser=True)
+        debug = result["debug"]
+
+        self.assertEqual(1, len(result["rows"]))
+        self.assertEqual("detail_extract_browser", debug["parser_mode"])
+        self.assertGreaterEqual(debug["detail_links_found"], 1)
+        self.assertIn("playwright_html_fetch", debug["reasons"])
+
+    @patch("scrapers.oliveyoung.fetch_playwright_page_html")
+    @patch("scrapers.oliveyoung.collect_playwright_visible_links")
+    @patch("scrapers.oliveyoung.requests.Session")
+    def test_browser_hub_error_pages_are_ignored(
+        self,
+        session_cls,
+        collect_links,
+        fetch_html,
+    ) -> None:
+        session = MagicMock()
+        session_cls.return_value = session
+        session.get.return_value = MagicMock(status_code=403, text="<html>blocked</html>")
+
+        collect_links.return_value = ([], [], "")
+        fetch_html.side_effect = [
+            ('<div id="Wrapper" class="error-wrap"><div class="error-page"></div></div>', ["playwright_html_fetch"]),
+            ('<div id="Wrapper" class="error-wrap"><div class="error-page"></div></div>', ["playwright_html_fetch"]),
+            ('<div id="Wrapper" class="error-wrap"><div class="error-page"></div></div>', ["playwright_html_fetch"]),
+            ('<div id="Wrapper" class="error-wrap"><div class="error-page"></div></div>', ["playwright_html_fetch"]),
+        ]
+
+        result = scrape_oliveyoung(timeout_seconds=1, limit=5, debug_save_html=False, enable_browser=True)
+        debug = result["debug"]
+
+        self.assertEqual([], result["rows"])
+        self.assertEqual("all_seed_urls_failed", debug["failure_reason"])
+        self.assertIn("oliveyoung_browser_error_page", debug["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

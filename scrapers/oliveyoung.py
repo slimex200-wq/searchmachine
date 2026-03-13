@@ -128,6 +128,23 @@ def _extract_detail_links(soup: BeautifulSoup, hub_url: str, limit: int) -> list
     return links
 
 
+def _extract_detail_links_from_html(html: str, hub_url: str, limit: int) -> list[str]:
+    return _extract_detail_links(BeautifulSoup(html, "html.parser"), hub_url, limit)
+
+
+def _looks_like_oliveyoung_error_page(html: str) -> bool:
+    lowered = html.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            'class="error-page"',
+            'class="error-wrap"',
+            "common.link.movemainhome",
+            "location.href='/'",
+        )
+    )
+
+
 def _extract_date_window(text: str) -> tuple[str | None, str | None]:
     year_pattern = re.search(
         r"(20\d{2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})\s*[~\-]\s*(?:(20\d{2})[.\-/]\s*)?(\d{1,2})[.\-/]\s*(\d{1,2})",
@@ -144,9 +161,10 @@ def _extract_date_window(text: str) -> tuple[str | None, str | None]:
     if short_pattern:
         start_month, start_day, end_month, end_day = short_pattern.groups()
         current_year = date.today().year
+        end_year = current_year + 1 if int(end_month) < int(start_month) else current_year
         return (
             f"{current_year:04d}-{int(start_month):02d}-{int(start_day):02d}",
-            f"{current_year:04d}-{int(end_month):02d}-{int(end_day):02d}",
+            f"{end_year:04d}-{int(end_month):02d}-{int(end_day):02d}",
         )
     return None, None
 
@@ -236,6 +254,11 @@ def scrape_oliveyoung(
             if not html.strip():
                 debug["reasons"].append("empty_html")
                 continue
+            if _looks_like_oliveyoung_error_page(html):
+                debug["reasons"].append("oliveyoung_error_page")
+                if debug_save_html:
+                    _save_snapshot(debug_dir, "oliveyoung_hub", index, html)
+                continue
 
             soup = BeautifulSoup(html, "html.parser")
             extracted_links = _extract_detail_links(soup, hub_url, limit)
@@ -285,6 +308,34 @@ def scrape_oliveyoung(
         except Exception as exc:  # pragma: no cover
             debug["reasons"].append(f"playwright_error:{type(exc).__name__}")
 
+    if not detail_links and enable_browser:
+        for index, config in enumerate(BROWSER_ENTRY_CONFIGS):
+            entry_url = str(config["url"])
+            try:
+                html, browser_reasons = fetch_playwright_page_html(
+                    url=entry_url,
+                    viewport=config["viewport"],
+                    user_agent=config["user_agent"],
+                )
+                debug["reasons"].extend(browser_reasons)
+                debug["requested_url"].append(entry_url)
+                if _looks_like_oliveyoung_error_page(html):
+                    debug["reasons"].append("oliveyoung_browser_error_page")
+                    if debug_save_html:
+                        _save_snapshot(debug_dir, "oliveyoung_browser_hub", index, html)
+                    continue
+                browser_links = _extract_detail_links_from_html(html, entry_url, limit)
+                debug["detail_links_found"] = max(debug["detail_links_found"], len(browser_links))
+                if browser_links:
+                    detail_links = browser_links
+                    debug["hub_url"] = entry_url
+                    debug["parser_mode"] = "playwright_html_hub_extract"
+                    break
+                if debug_save_html:
+                    _save_snapshot(debug_dir, "oliveyoung_browser_hub", index, html)
+            except Exception as exc:  # pragma: no cover
+                debug["reasons"].append(f"playwright_html_hub_error:{type(exc).__name__}")
+
     for index, detail_url in enumerate(detail_links[:limit]):
         debug["requested_url"].append(detail_url)
         try:
@@ -313,12 +364,18 @@ def scrape_oliveyoung(
                     print(f"[oliveyoung] browser_html_length={len(html)}")
                     if not html.strip():
                         continue
+                    if _looks_like_oliveyoung_error_page(html):
+                        debug["reasons"].append("oliveyoung_browser_detail_error_page")
+                        continue
                 except Exception as exc:  # pragma: no cover
                     debug["reasons"].append(f"detail_playwright_error:{type(exc).__name__}")
                     continue
 
             debug["detail_pages_parsed"] += 1
             debug["raw_candidates"] += 1
+            if _looks_like_oliveyoung_error_page(html):
+                debug["reasons"].append("oliveyoung_detail_error_page")
+                continue
             if debug["parser_mode"] != "detail_extract_browser":
                 debug["parser_mode"] = "detail_extract"
                 print("[oliveyoung] parser_mode=detail_extract")

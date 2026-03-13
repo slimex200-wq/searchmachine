@@ -37,6 +37,50 @@ def collect_locator_links(
     return links, count
 
 
+def _looks_like_cloudflare_challenge(html: str) -> bool:
+    lowered = html.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "challenge-error-text",
+            "enable javascript and cookies to continue",
+            "/cdn-cgi/challenge-platform/",
+            "window._cf_chl_opt",
+            "cloudflare-branding",
+            "cf_chl_opt",
+            "cf-challenge-running",
+        )
+    )
+
+
+def _wait_for_challenge_clear(page: Any, timeout_ms: int) -> tuple[str, list[str]]:
+    reasons: list[str] = []
+    html = page.content()
+    if not _looks_like_cloudflare_challenge(html):
+        return html, reasons
+
+    reasons.append("cloudflare_challenge_detected")
+    wait_slices_ms = (5000, 8000, 10000)
+    elapsed_ms = 0
+
+    for slice_ms in wait_slices_ms:
+        if elapsed_ms >= timeout_ms:
+            break
+        page.wait_for_timeout(slice_ms)
+        elapsed_ms += slice_ms
+        try:
+            page.wait_for_load_state("networkidle", timeout=min(5000, max(1000, timeout_ms - elapsed_ms)))
+        except Exception:
+            pass
+        html = page.content()
+        if not _looks_like_cloudflare_challenge(html):
+            reasons.append("cloudflare_challenge_cleared")
+            return html, reasons
+
+    reasons.append("cloudflare_challenge_persisted")
+    return html, reasons
+
+
 def collect_playwright_visible_links(
     entry_configs: list[dict[str, Any]],
     selector: str,
@@ -65,6 +109,8 @@ def collect_playwright_visible_links(
                 try:
                     page.goto(entry_url, wait_until="networkidle", timeout=60000)
                     page.wait_for_timeout(3000)
+                    _, challenge_reasons = _wait_for_challenge_clear(page, timeout_ms=20000)
+                    reasons.extend(challenge_reasons)
 
                     links, anchor_count = collect_locator_links(
                         page=page,
@@ -108,6 +154,8 @@ def fetch_playwright_page_html(
             try:
                 page.goto(url, wait_until="networkidle", timeout=timeout_ms)
                 page.wait_for_timeout(2000)
+                _, challenge_reasons = _wait_for_challenge_clear(page, timeout_ms=min(20000, timeout_ms))
+                reasons.extend(challenge_reasons)
                 reasons.append("playwright_html_fetch")
                 return page.content(), reasons
             finally:

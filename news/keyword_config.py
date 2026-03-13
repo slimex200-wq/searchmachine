@@ -37,18 +37,21 @@ PLATFORM_NEWS_QUERIES: dict[str, list[str]] = {
         "KREAM 위크",
         "크림 할인 행사",
         "크림 세일",
+        "크림 한정판 위크",
+        "KREAM 스니커즈 세일",
+        "크림 리셀 페스타",
     ],
 }
 
 PLATFORM_HINTS: dict[str, tuple[str, ...]] = {
     "musinsa": ("무신사", "MUSINSA"),
     "wconcept": ("W컨셉", "W CONCEPT", "Wconcept"),
-    "29cm": ("29CM", "이구위크"),
-    "ssg": ("SSG", "쓱데이", "신세계"),
-    "oliveyoung": ("올리브영", "Olive Young"),
-    "coupang": ("쿠팡", "Coupang"),
-    "ohouse": ("오늘의집", "오늘의 집", "Ohouse", "ohouse"),
-    "kream": ("KREAM", "크림"),
+    "29cm": ("29CM", "이구홈위크"),
+    "ssg": ("SSG", "쓱데이", "쓱세일"),
+    "oliveyoung": ("올리브영", "Olive Young", "올영"),
+    "coupang": ("쿠팡", "Coupang", "로켓와우"),
+    "ohouse": ("오늘의집", "오늘의 집", "오하우스", "Ohouse", "ohouse"),
+    "kream": ("KREAM", "크림", "한정판", "리셀"),
 }
 
 INCLUDE_PRIORITY_KEYWORDS = (
@@ -56,8 +59,8 @@ INCLUDE_PRIORITY_KEYWORDS = (
     "할인",
     "브랜드위크",
     "블랙프라이데이",
-    "앵콜위크",
-    "이구위크",
+    "팝업위크",
+    "이구홈위크",
     "쓱데이",
     "페스타",
     "기획전",
@@ -69,7 +72,8 @@ INCLUDE_PRIORITY_KEYWORDS = (
     "위캔드오프",
     "뷰티 페스타",
     "할인 행사",
-    "이구홈위크",
+    "한정판 위크",
+    "리셀 페스타",
 )
 
 EXCLUDE_PRIORITY_KEYWORDS = (
@@ -83,5 +87,5 @@ EXCLUDE_PRIORITY_KEYWORDS = (
     "단독 발매",
     "업데이트",
     "1개 상품",
-    "하루 특가",
+    "한정 수량",
 )

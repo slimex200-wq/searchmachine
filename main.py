@@ -6,7 +6,15 @@ from community import scrape_clien, scrape_ppomppu
 from config import get_settings
 from news import scrape_google_news, scrape_naver_news
 from pipelines.normalize import normalize_community_rows
-from scrapers import scrape_29cm, scrape_musinsa, scrape_oliveyoung, scrape_ssg, scrape_wconcept
+from scrapers import (
+    scrape_29cm,
+    scrape_coupang,
+    scrape_musinsa,
+    scrape_ohouse,
+    scrape_oliveyoung,
+    scrape_ssg,
+    scrape_wconcept,
+)
 from utils import print_source_header, print_source_report, print_summary
 
 
@@ -33,6 +41,8 @@ def main() -> None:
         ("WconceptScraper", lambda **kwargs: scrape_wconcept(**kwargs, enable_browser=True), "fashion"),
         ("SsgScraper", lambda **kwargs: scrape_ssg(**kwargs, enable_browser=True), "general"),
         ("MusinsaScraper", scrape_musinsa, "fashion"),
+        ("CoupangScraper", scrape_coupang, "general"),
+        ("OhouseScraper", scrape_ohouse, "living"),
         ("OliveyoungScraper", lambda **kwargs: scrape_oliveyoung(**kwargs, enable_browser=True), "beauty"),
         (
             "NaverNewsDiscovery",

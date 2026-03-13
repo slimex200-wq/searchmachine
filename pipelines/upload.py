@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from api_client import PickSaleApiClient
-from utils import SourceStats
+from utils import SourceStats, safe_print
 
 
 def upload_sales_payloads(client: PickSaleApiClient, payloads: list[dict], stats: SourceStats) -> None:
@@ -21,8 +21,9 @@ def upload_sales_payloads(client: PickSaleApiClient, payloads: list[dict], stats
                 stats.duplicates += 1
             else:
                 stats.errors += 1
-        except Exception:
+        except Exception as exc:
             stats.errors += 1
+            safe_print(f"[upload] sale_upload_error={type(exc).__name__}: {exc}")
 
 
 def upload_community_payloads(client: PickSaleApiClient, payloads: list[dict], stats: SourceStats) -> None:
@@ -35,5 +36,6 @@ def upload_community_payloads(client: PickSaleApiClient, payloads: list[dict], s
                 stats.duplicates += 1
             else:
                 stats.errors += 1
-        except Exception:
+        except Exception as exc:
             stats.errors += 1
+            safe_print(f"[upload] community_upload_error={type(exc).__name__}: {exc}")

@@ -7,9 +7,11 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
+from scrapers.browser_utils import fetch_playwright_page_html
 from utils import normalize_link, normalize_space
 
 KEYWORDS = ("세일", "이벤트", "기획전", "특가", "페어", "할인", "o!sale", "집요한세일", "전시")
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
 
 def _seed_urls() -> list[str]:
@@ -31,6 +33,13 @@ def _save_snapshot(debug_dir: str, source: str, idx: int, html: str) -> None:
 def _is_allowed_ohouse_link(link: str) -> bool:
     host = urlparse(link).netloc.lower()
     return host.endswith("ohou.se") or host.endswith("store.ohou.se") or host.endswith("todayhouse.com")
+
+
+def _looks_like_access_denied(html: str) -> bool:
+    lowered = html.lower()
+    return "access denied" in lowered and (
+        "errors.edgesuite.net" in lowered or "you don't have permission" in lowered
+    )
 
 
 def _extract_rows(candidates: list[Any], source_url: str, limit: int) -> tuple[list[dict[str, Any]], int]:
@@ -76,7 +85,7 @@ def scrape_ohouse(
     debug_dir: str = "scraper_debug",
 ) -> dict[str, Any]:
     s = requests.Session()
-    s.headers.update({"User-Agent": "Mozilla/5.0", "Referer": "https://ohou.se/"})
+    s.headers.update({"User-Agent": USER_AGENT, "Referer": "https://ohou.se/"})
 
     rows: list[dict[str, Any]] = []
     debug = {
@@ -102,6 +111,10 @@ def scrape_ohouse(
 
             if r.status_code == 403:
                 debug["reasons"].append("access_denied_403")
+            if _looks_like_access_denied(html):
+                debug["reasons"].append("akamai_access_denied")
+
+            should_try_browser = r.status_code == 403 or _looks_like_access_denied(html)
 
             if not html.strip():
                 debug["reasons"].append("empty_html")
@@ -113,6 +126,25 @@ def scrape_ohouse(
 
             if not selected:
                 debug["reasons"].append("selector_zero")
+                if should_try_browser:
+                    try:
+                        browser_html, browser_reasons = fetch_playwright_page_html(
+                            url,
+                            viewport={"width": 1440, "height": 2200},
+                            user_agent=USER_AGENT,
+                        )
+                        debug["reasons"].extend(browser_reasons)
+                        print(f"[ohouse] browser_html_len={len(browser_html)}")
+                        if debug_save_html:
+                            _save_snapshot(debug_dir, "ohouse_browser", i, browser_html)
+                        if _looks_like_access_denied(browser_html):
+                            debug["reasons"].append("browser_access_denied")
+                            continue
+                        soup = BeautifulSoup(browser_html, "html.parser")
+                    except Exception as exc:
+                        debug["reasons"].append(f"browser_fallback_error:{type(exc).__name__}")
+                        continue
+
                 selected = soup.select("a[href]")
                 print(f"[ohouse] fallback_anchor_count={len(selected)}")
 
