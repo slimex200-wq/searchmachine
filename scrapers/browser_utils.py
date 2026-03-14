@@ -180,9 +180,22 @@ def fetch_cloudflare_rendered_html(
             reasons.append("cloudflare_missing_account_id")
         if not api_token:
             reasons.append("cloudflare_missing_api_token")
+        print(
+            "[cloudflare] request"
+            f" url={url}"
+            f" configured_account_id={bool(account_id)}"
+            f" configured_api_token={bool(api_token)}"
+            f" reasons={','.join(reasons + ['cloudflare_unconfigured'])}"
+        )
         return "", reasons + ["cloudflare_unconfigured"]
 
     reasons.append("cloudflare_configured")
+    print(
+        "[cloudflare] request"
+        f" url={url}"
+        " configured_account_id=True"
+        " configured_api_token=True"
+    )
 
     endpoint = (
         f"https://api.cloudflare.com/client/v4/accounts/{account_id}"
@@ -206,23 +219,37 @@ def fetch_cloudflare_rendered_html(
             timeout=timeout_seconds,
         )
     except requests.RequestException as exc:
+        print(
+            "[cloudflare] request_error"
+            f" url={url}"
+            f" error={type(exc).__name__}"
+        )
         return "", reasons + [f"cloudflare_request_error:{type(exc).__name__}"]
 
     reasons.append(f"cloudflare_http_status_{response.status_code}")
+    print(
+        "[cloudflare] response"
+        f" url={url}"
+        f" status={response.status_code}"
+    )
     if response.status_code != 200:
         return "", reasons
 
     try:
         data = response.json()
     except ValueError:
+        print(f"[cloudflare] invalid_json url={url}")
         return "", reasons + ["cloudflare_invalid_json"]
 
     if not data.get("success"):
+        print(f"[cloudflare] unsuccessful url={url}")
         return "", reasons + ["cloudflare_unsuccessful"]
 
     result = data.get("result", "")
     html = result if isinstance(result, str) else ""
     if not html.strip():
+        print(f"[cloudflare] empty_html url={url}")
         return "", reasons + ["cloudflare_empty_html"]
 
+    print(f"[cloudflare] content_html_length={len(html)} url={url}")
     return html, reasons + ["cloudflare_content_fetch"]

@@ -212,14 +212,19 @@ def scrape_kream(
                 else:
                     if browser_html.strip():
                         debug["reasons"].append("kream_browser_error_page")
+                    print(f"[kream] attempting_cloudflare url={url}")
                     cloudflare_html, cloudflare_reasons = fetch_cloudflare_rendered_html(
                         url=url,
                         user_agent=USER_AGENT,
                         timeout_seconds=timeout_seconds,
                     )
                     debug["reasons"].extend(cloudflare_reasons)
-                    if cloudflare_reasons:
-                        print(f"[kream] cloudflare_reasons={','.join(cloudflare_reasons)}")
+                    print(
+                        "[kream] cloudflare_result"
+                        f" url={url}"
+                        f" html_length={len(cloudflare_html)}"
+                        f" reasons={','.join(cloudflare_reasons) if cloudflare_reasons else 'none'}"
+                    )
                     if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
                         html = cloudflare_html
                         debug["reasons"].append("cloudflare_seed_fallback")
@@ -270,14 +275,19 @@ def scrape_kream(
             debug["http_status"].append("ERR")
             debug["html_length"].append("0")
             debug["reasons"].append(f"request_error:{type(exc).__name__}")
+            print(f"[kream] attempting_cloudflare url={url}")
             cloudflare_html, cloudflare_reasons = fetch_cloudflare_rendered_html(
                 url=url,
                 user_agent=USER_AGENT,
                 timeout_seconds=timeout_seconds,
             )
             debug["reasons"].extend(cloudflare_reasons)
-            if cloudflare_reasons:
-                print(f"[kream] cloudflare_reasons={','.join(cloudflare_reasons)}")
+            print(
+                "[kream] cloudflare_result"
+                f" url={url}"
+                f" html_length={len(cloudflare_html)}"
+                f" reasons={','.join(cloudflare_reasons) if cloudflare_reasons else 'none'}"
+            )
             if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
                 html = cloudflare_html
                 debug["reasons"].append("cloudflare_seed_fallback")
