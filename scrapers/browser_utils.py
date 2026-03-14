@@ -174,8 +174,15 @@ def fetch_cloudflare_rendered_html(
 ) -> tuple[str, list[str]]:
     account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
     api_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+    reasons: list[str] = []
     if not account_id or not api_token:
-        return "", ["cloudflare_unconfigured"]
+        if not account_id:
+            reasons.append("cloudflare_missing_account_id")
+        if not api_token:
+            reasons.append("cloudflare_missing_api_token")
+        return "", reasons + ["cloudflare_unconfigured"]
+
+    reasons.append("cloudflare_configured")
 
     endpoint = (
         f"https://api.cloudflare.com/client/v4/accounts/{account_id}"
@@ -199,9 +206,9 @@ def fetch_cloudflare_rendered_html(
             timeout=timeout_seconds,
         )
     except requests.RequestException as exc:
-        return "", [f"cloudflare_request_error:{type(exc).__name__}"]
+        return "", reasons + [f"cloudflare_request_error:{type(exc).__name__}"]
 
-    reasons = [f"cloudflare_http_status_{response.status_code}"]
+    reasons.append(f"cloudflare_http_status_{response.status_code}")
     if response.status_code != 200:
         return "", reasons
 

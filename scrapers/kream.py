@@ -218,6 +218,8 @@ def scrape_kream(
                         timeout_seconds=timeout_seconds,
                     )
                     debug["reasons"].extend(cloudflare_reasons)
+                    if cloudflare_reasons:
+                        print(f"[kream] cloudflare_reasons={','.join(cloudflare_reasons)}")
                     if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
                         html = cloudflare_html
                         debug["reasons"].append("cloudflare_seed_fallback")
@@ -274,6 +276,8 @@ def scrape_kream(
                 timeout_seconds=timeout_seconds,
             )
             debug["reasons"].extend(cloudflare_reasons)
+            if cloudflare_reasons:
+                print(f"[kream] cloudflare_reasons={','.join(cloudflare_reasons)}")
             if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
                 html = cloudflare_html
                 debug["reasons"].append("cloudflare_seed_fallback")
