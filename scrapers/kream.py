@@ -187,6 +187,7 @@ def scrape_kream(
         "items_extracted": 0,
         "failure_reason": "",
         "reasons": [],
+        "cloudflare_timeout_count": 0,
     }
 
     for i, url in enumerate(_seed_urls()):
@@ -230,6 +231,8 @@ def scrape_kream(
                         timeout_seconds=timeout_seconds,
                     )
                     debug["reasons"].extend(cloudflare_reasons)
+                    if "cloudflare_request_error:ReadTimeout" in cloudflare_reasons:
+                        debug["cloudflare_timeout_count"] += 1
                     print(
                         "[kream] cloudflare_result"
                         f" url={url}"
@@ -293,6 +296,8 @@ def scrape_kream(
                 timeout_seconds=timeout_seconds,
             )
             debug["reasons"].extend(cloudflare_reasons)
+            if "cloudflare_request_error:ReadTimeout" in cloudflare_reasons:
+                debug["cloudflare_timeout_count"] += 1
             print(
                 "[kream] cloudflare_result"
                 f" url={url}"
@@ -339,7 +344,10 @@ def scrape_kream(
             continue
 
     if not rows:
-        if debug["valid_source_page_count"] == 0:
+        if debug["cloudflare_timeout_count"] >= len(_seed_urls()):
+            debug["reasons"].append("kream_temporarily_disabled")
+            debug["failure_reason"] = "disabled_cloudflare_timeout"
+        elif debug["valid_source_page_count"] == 0:
             debug["failure_reason"] = "all_seed_urls_failed"
         elif debug["raw_candidates"] == 0:
             debug["failure_reason"] = "no_valid_source_page"
