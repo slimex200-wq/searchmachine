@@ -201,10 +201,12 @@ def fetch_cloudflare_rendered_html(
         f"https://api.cloudflare.com/client/v4/accounts/{account_id}"
         "/browser-rendering/content"
     )
+    read_timeout_seconds = max(timeout_seconds, 60)
     payload = {
         "url": url,
         "userAgent": user_agent,
-        "gotoOptions": {"waitUntil": "networkidle0"},
+        # KREAM keeps background requests alive, so networkidle can stall rendering.
+        "gotoOptions": {"waitUntil": "domcontentloaded", "timeout": read_timeout_seconds * 1000},
     }
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -216,7 +218,7 @@ def fetch_cloudflare_rendered_html(
             endpoint,
             json=payload,
             headers=headers,
-            timeout=timeout_seconds,
+            timeout=(10, read_timeout_seconds),
         )
     except requests.RequestException as exc:
         print(
