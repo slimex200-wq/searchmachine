@@ -197,3 +197,33 @@ Notes:
   - selector count and fallback count
   - pre/post filtering counts
 - If `DEBUG_SAVE_HTML=true`, HTML snapshots are stored in `scraper_debug/`.
+
+## Blocked Source Recovery
+
+Blocked-source investigation docs:
+
+- [BLOCKED_SCRAPER_STRATEGY.md](/c:/Users/slime/Desktop/picksale-ingestor/BLOCKED_SCRAPER_STRATEGY.md)
+- [COUPANG_POC_PLAN.md](/c:/Users/slime/Desktop/picksale-ingestor/COUPANG_POC_PLAN.md)
+- [COUPANG_PHASE1_FINDINGS.md](/c:/Users/slime/Desktop/picksale-ingestor/COUPANG_PHASE1_FINDINGS.md)
+- [COUPANG_PHASE2_CHECKLIST.md](/c:/Users/slime/Desktop/picksale-ingestor/COUPANG_PHASE2_CHECKLIST.md)
+- [COUPANG_APP_DISCOVERY_GUIDE.md](/c:/Users/slime/Desktop/picksale-ingestor/COUPANG_APP_DISCOVERY_GUIDE.md)
+- [OLIVEYOUNG_POC_PLAN.md](/c:/Users/slime/Desktop/picksale-ingestor/OLIVEYOUNG_POC_PLAN.md)
+- [OLIVEYOUNG_PHASE1_FINDINGS.md](/c:/Users/slime/Desktop/picksale-ingestor/OLIVEYOUNG_PHASE1_FINDINGS.md)
+- [OLIVEYOUNG_APP_DISCOVERY_GUIDE.md](/c:/Users/slime/Desktop/picksale-ingestor/OLIVEYOUNG_APP_DISCOVERY_GUIDE.md)
+- [OHOUSE_POC_PLAN.md](/c:/Users/slime/Desktop/picksale-ingestor/OHOUSE_POC_PLAN.md)
+- [KREAM_POC_PLAN.md](/c:/Users/slime/Desktop/picksale-ingestor/KREAM_POC_PLAN.md)
+
+Local probe helpers:
+
+- [debug_coupang_phase2.py](/c:/Users/slime/Desktop/picksale-ingestor/debug_coupang_phase2.py)
+- [debug_oliveyoung_phase2.py](/c:/Users/slime/Desktop/picksale-ingestor/debug_oliveyoung_phase2.py)
+- [probe_result_summary.py](/c:/Users/slime/Desktop/picksale-ingestor/probe_result_summary.py)
+
+Examples:
+
+```bash
+python debug_coupang_phase2.py --browser
+python debug_oliveyoung_phase2.py --browser
+python probe_result_summary.py scraper_debug/coupang_phase2_YYYYMMDD_HHMMSS
+python probe_result_summary.py scraper_debug/oliveyoung_phase2_YYYYMMDD_HHMMSS
+```
