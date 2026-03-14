@@ -85,6 +85,17 @@ def _looks_like_kream_error_page(html: str) -> bool:
     )
 
 
+def _has_usable_kream_html(html: str) -> bool:
+    stripped = html.strip()
+    if not stripped:
+        return False
+    if _looks_like_kream_error_page(stripped):
+        return False
+    if len(stripped) < 200:
+        return False
+    return True
+
+
 def _build_seed_row(soup: BeautifulSoup, source_url: str) -> dict[str, Any] | None:
     title = normalize_space((soup.find("meta", attrs={"property": "og:title"}) or {}).get("content", ""))
     if not title:
@@ -205,13 +216,13 @@ def scrape_kream(
                     browser_html = ""
                     browser_reasons = [f"browser_fallback_error:{type(exc).__name__}"]
                 debug["reasons"].extend(browser_reasons)
-                if browser_html.strip() and not _looks_like_kream_error_page(browser_html):
+                if _has_usable_kream_html(browser_html):
                     html = browser_html
                     debug["reasons"].append("browser_seed_fallback")
                     print(f"[kream] browser_html_length={len(html)}")
                 else:
                     if browser_html.strip():
-                        debug["reasons"].append("kream_browser_error_page")
+                        debug["reasons"].append("kream_browser_unusable_html")
                     print(f"[kream] attempting_cloudflare url={url}")
                     cloudflare_html, cloudflare_reasons = fetch_cloudflare_rendered_html(
                         url=url,
@@ -225,7 +236,7 @@ def scrape_kream(
                         f" html_length={len(cloudflare_html)}"
                         f" reasons={','.join(cloudflare_reasons) if cloudflare_reasons else 'none'}"
                     )
-                    if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
+                    if _has_usable_kream_html(cloudflare_html):
                         html = cloudflare_html
                         debug["reasons"].append("cloudflare_seed_fallback")
                         print(f"[kream] cloudflare_html_length={len(html)}")
@@ -288,7 +299,7 @@ def scrape_kream(
                 f" html_length={len(cloudflare_html)}"
                 f" reasons={','.join(cloudflare_reasons) if cloudflare_reasons else 'none'}"
             )
-            if cloudflare_html.strip() and not _looks_like_kream_error_page(cloudflare_html):
+            if _has_usable_kream_html(cloudflare_html):
                 html = cloudflare_html
                 debug["reasons"].append("cloudflare_seed_fallback")
                 print(f"[kream] cloudflare_html_length={len(html)}")
