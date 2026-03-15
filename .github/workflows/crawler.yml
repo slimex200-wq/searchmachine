@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       PICKSALE_SALES_API_URL: ${{ secrets.PICKSALE_SALES_API_URL }}
       PICKSALE_COMMUNITY_API_URL: ${{ secrets.PICKSALE_COMMUNITY_API_URL }}
       PICKSALE_API_KEY: ${{ secrets.PICKSALE_API_KEY }}
@@ -28,32 +29,60 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Initialize diagnostics
+        shell: bash
+        run: |
+          touch crawler.log
+          {
+            echo "=== workflow diagnostics ==="
+            echo "python_preinstall=$(command -v python3 || command -v python || echo missing)"
+            echo "PICKSALE_SALES_API_URL_SET=${PICKSALE_SALES_API_URL:+yes}"
+            echo "PICKSALE_COMMUNITY_API_URL_SET=${PICKSALE_COMMUNITY_API_URL:+yes}"
+            echo "PICKSALE_API_KEY_SET=${PICKSALE_API_KEY:+yes}"
+            echo "NAVER_CLIENT_ID_SET=${NAVER_CLIENT_ID:+yes}"
+            echo "NAVER_CLIENT_SECRET_SET=${NAVER_CLIENT_SECRET:+yes}"
+            echo "CLOUDFLARE_ACCOUNT_ID_SET=${CLOUDFLARE_ACCOUNT_ID:+yes}"
+            echo "CLOUDFLARE_API_TOKEN_SET=${CLOUDFLARE_API_TOKEN:+yes}"
+          } | tee -a crawler.log
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        shell: bash
+        run: |
+          python --version | tee -a crawler.log
+          pip --version | tee -a crawler.log
+          pip install -r requirements.txt 2>&1 | tee -a crawler.log
 
       - name: Install Playwright Chromium
-        run: python -m playwright install --with-deps chromium
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m playwright install --with-deps chromium 2>&1 | tee -a crawler.log
 
       - name: Run tests
-        run: python -m unittest discover -s tests
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests 2>&1 | tee -a crawler.log
 
       - name: Run crawler
         shell: bash
         run: |
+          touch crawler.log
           set -o pipefail
-          python main.py 2>&1 | tee crawler.log
+          python main.py 2>&1 | tee -a crawler.log
 
       - name: Upload crawler log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: crawler-log
           path: crawler.log
+          if-no-files-found: warn
