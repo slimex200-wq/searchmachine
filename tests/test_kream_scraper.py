@@ -7,10 +7,19 @@ from scrapers.kream import scrape_kream
 
 
 class TestKreamScraper(unittest.TestCase):
+    @patch("scrapers.kream.fetch_playwright_page_html")
+    @patch("scrapers.kream.fetch_cloudflare_rendered_html")
     @patch("scrapers.kream.requests.Session")
-    def test_non_200_seed_urls_do_not_produce_candidates(self, session_cls) -> None:
+    def test_non_200_seed_urls_do_not_produce_candidates(
+        self,
+        session_cls,
+        cloudflare_fetch,
+        browser_fetch,
+    ) -> None:
         session = MagicMock()
         session_cls.return_value = session
+        browser_fetch.return_value = ("", ["playwright_html_fetch"])
+        cloudflare_fetch.return_value = ("", ["cloudflare_unconfigured"])
 
         response_404 = MagicMock(status_code=404, text="<html>not found</html>")
         response_403 = MagicMock(status_code=403, text="<html>denied</html>")
@@ -23,6 +32,8 @@ class TestKreamScraper(unittest.TestCase):
         self.assertEqual(0, debug["valid_source_page_count"])
         self.assertEqual("all_seed_urls_failed", debug["failure_reason"])
         self.assertEqual(0, debug["filtered_candidates"])
+        self.assertEqual(4, browser_fetch.call_count)
+        self.assertEqual(4, cloudflare_fetch.call_count)
 
     @patch("scrapers.kream.requests.Session")
     def test_seed_page_metadata_can_create_sale_candidate(self, session_cls) -> None:
